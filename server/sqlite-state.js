@@ -1,5 +1,4 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
 import { ProviderAccountNotFoundError } from './provider-account-registry.js';
@@ -7,8 +6,9 @@ import { SyncStateNotFoundError } from './sync-state-store.js';
 import { IdempotencyConflictError, IdempotencyNotFoundError } from './idempotency-store.js';
 import { OAuthStateError, isApprovedRedirectPath } from './oauth-state-store.js';
 import { CredentialNotFoundError } from './credential-vault.js';
+import { applySqliteMigrations } from './sqlite-migrations.js';
 
-const SCHEMA = readFileSync(new URL('../docs/persistence-schema.sql', import.meta.url), 'utf8');
+const ATTACHMENT_NOT_FOUND = 'Attachment delivery record was not found.';
 
 function required(values) {
   for (const [name, value] of Object.entries(values)) {
@@ -35,6 +35,22 @@ function publicIdempotency(row) {
 function publicCredentialRef(row) {
   return Object.freeze({ accountId: row.account_id, provider: row.provider, updatedAt: row.updated_at, configured: true });
 }
+function publicAttachment(row) {
+  return Object.freeze({
+    objectId: row.object_id,
+    accountId: row.account_id,
+    messageId: row.message_id,
+    attachmentId: row.attachment_id,
+    filename: row.filename,
+    mimeType: row.declared_mime_type,
+    sniffedMimeType: row.sniffed_mime_type ?? null,
+    size: Number(row.actual_size),
+    sha256: row.sha256,
+    createdAt: row.created_at,
+    lastAccessedAt: row.last_accessed_at ?? null,
+    expiresAt: row.expires_at ?? null,
+  });
+}
 function hashOAuthState(state) {
   return createHash('sha256').update(state, 'utf8').digest('hex');
 }
@@ -47,7 +63,7 @@ export class SqliteMailState {
     this.#db = new DatabaseSync(path);
     this.#db.exec('PRAGMA foreign_keys = ON;');
     this.#db.exec('PRAGMA journal_mode = WAL;');
-    this.#db.exec(SCHEMA);
+    applySqliteMigrations(this.#db);
   }
   close() { this.#db.close(); }
   transaction(callback) {
@@ -140,6 +156,34 @@ export class SqliteMailState {
   }
   getMailboxState({userId,accountId,mailboxId}) {
     required({userId,accountId,mailboxId}); const row=this.#db.prepare(`SELECT account_id,mailbox_id,last_successful_sync_at,last_attempted_sync_at,last_error_code FROM mailbox_cache_state WHERE user_id=? AND account_id=? AND mailbox_id=?`).get(userId,accountId,mailboxId); if(!row) throw new SyncStateNotFoundError(); return publicMailbox(row);
+  }
+
+  putAttachmentDeliveryRecord({ userId, accountId, objectId, messageId, attachmentId, filename='attachment', mimeType='application/octet-stream', sniffedMimeType=null, size, sha256, createdAt=new Date().toISOString(), expiresAt=null }) {
+    required({ userId, accountId, objectId, messageId, attachmentId, filename, mimeType, size, sha256, createdAt });
+    this.getProviderAccountForUser(userId, accountId);
+    if (!Number.isSafeInteger(Number(size)) || Number(size) < 0) throw new TypeError('size must be a non-negative safe integer');
+    this.#db.prepare(`INSERT INTO attachment_delivery_records (object_id,user_id,account_id,message_id,attachment_id,filename,declared_mime_type,sniffed_mime_type,actual_size,sha256,created_at,last_accessed_at,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,?)`).run(objectId,userId,accountId,messageId,attachmentId,filename,mimeType,sniffedMimeType,Number(size),sha256,createdAt,expiresAt);
+    return this.getAttachmentDeliveryRecord({ userId, objectId });
+  }
+  getAttachmentDeliveryRecord({ userId, objectId }) {
+    required({ userId, objectId });
+    const row=this.#db.prepare(`SELECT object_id,account_id,message_id,attachment_id,filename,declared_mime_type,sniffed_mime_type,actual_size,sha256,created_at,last_accessed_at,expires_at FROM attachment_delivery_records WHERE user_id=? AND object_id=?`).get(userId,objectId);
+    if (!row) throw new SyncStateNotFoundError(ATTACHMENT_NOT_FOUND);
+    return publicAttachment(row);
+  }
+  touchAttachmentDeliveryRecord({ userId, objectId, accessedAt=new Date().toISOString() }) {
+    required({ userId, objectId, accessedAt }); this.getAttachmentDeliveryRecord({ userId, objectId });
+    this.#db.prepare('UPDATE attachment_delivery_records SET last_accessed_at=? WHERE user_id=? AND object_id=?').run(accessedAt,userId,objectId);
+    return this.getAttachmentDeliveryRecord({ userId, objectId });
+  }
+  removeAttachmentDeliveryRecord({ userId, objectId }) {
+    this.getAttachmentDeliveryRecord({ userId, objectId });
+    this.#db.prepare('DELETE FROM attachment_delivery_records WHERE user_id=? AND object_id=?').run(userId,objectId);
+    return { removed: true };
+  }
+  listExpiredAttachmentDeliveryRecords({ now=new Date().toISOString(), limit=100 }={}) {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 1000) throw new TypeError('limit must be an integer between 1 and 1000');
+    return this.#db.prepare(`SELECT object_id,user_id,account_id,message_id,attachment_id,filename,declared_mime_type,sniffed_mime_type,actual_size,sha256,created_at,last_accessed_at,expires_at FROM attachment_delivery_records WHERE expires_at IS NOT NULL AND expires_at<=? ORDER BY expires_at,object_id LIMIT ?`).all(now,limit).map((row) => Object.freeze({ userId: row.user_id, ...publicAttachment(row) }));
   }
 
   beginIdempotentOperation({userId,accountId,operation,key,fingerprint}) {
