@@ -72,8 +72,8 @@ test('Gmail labels normalize system/user type and counts', () => {
     name: 'INBOX',
     type: 'system',
     messagesTotal: 4,
-    messagesUnread: 0,
-    threadsTotal: 0,
-    threadsUnread: 0,
+    messagesUnread: null,
+    threadsTotal: null,
+    threadsUnread: null,
   });
 });
