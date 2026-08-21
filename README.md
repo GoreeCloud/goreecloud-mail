@@ -4,9 +4,9 @@ Privacy-first, self-hosted GoreeCloud email client for web, Linux, and Android w
 
 ## Status
 
-Active development. The Glaze UI web foundation, provider-independent mail contract, same-origin provider gateway, trusted session identity boundary, user-scoped provider-account registry, OAuth authorization-state lifecycle, credential-vault abstraction, normalized provider errors, Wardveil message-link controls, Privacy Shield remote-content defaults, and synthetic Gmail API transport foundation are implemented as development foundations.
+Active development. The Glaze UI web foundation, provider-independent mail contract, same-origin provider gateway, trusted session identity boundary, user-scoped provider-account registry, OAuth authorization-state lifecycle, credential-vault abstraction, Gmail token lifecycle service, ownership-enforced Gmail account service, normalized provider errors, Wardveil message-link controls, Privacy Shield remote-content defaults, synthetic Gmail API transport, and durable-state schema blueprint are implemented as development foundations.
 
-Production deployment is not approved. Real Gmail and IMAP/SMTP connectivity, production persistence, production secret storage, production HTML sanitization, native packaging, and target-environment acceptance remain pending.
+Production deployment is not approved. Real Gmail and IMAP/SMTP connectivity, approved durable persistence, production secret storage, production HTML sanitization, native packaging, and target-environment acceptance remain pending.
 
 ## Role
 
@@ -25,7 +25,11 @@ The application uses a provider-independent mail layer with planned real-provide
 
 Server-side development foundations enforce session-derived GoreeCloud user identity, user-scoped provider-account lookup, single-use and expiring OAuth authorization state, application-relative redirect validation, bounded provider errors, and a separate credential-vault boundary. The trusted Gmail API client resolves bearer tokens server-side and keeps them out of normalized client-facing records.
 
-Current in-memory server components and injected synthetic Gmail responses exist to prove security, isolation, and normalization semantics only. They must be replaced or connected to approved production persistence, secret storage, and provider transport before deployment.
+The Gmail token lifecycle service reuses unexpired access tokens, refreshes expired tokens through the trusted backend, preserves refresh credentials when providers omit a replacement, and removes stored authorization state on local revocation. The Gmail account service verifies session-derived ownership and provider type before any Gmail transport operation is allowed to run.
+
+`docs/persistence-schema.sql` defines the intended durable-state separation for provider-account metadata, credential references, OAuth authorization state, synchronization cursors, and mailbox cache state. It deliberately stores only vault references for reusable credentials; secret values remain outside ordinary application persistence.
+
+Current in-memory server components and injected synthetic Gmail responses exist to prove security, isolation, lifecycle, and normalization semantics only. They must be replaced or connected to approved production persistence, secret storage, and provider transport before deployment.
 
 The UI uses Glaze UI, security-sensitive experiences use Wardveil Security, and privacy protections align with GoreeCloud Privacy Shield.
 
@@ -42,7 +46,7 @@ The UI uses Glaze UI, security-sensitive experiences use Wardveil Security, and 
 
 Email content, HTML, links, attachments, provider responses, and remote resources are untrusted input. Credentials, OAuth codes, refresh tokens, app passwords, session material, and other secrets must never be committed to this repository or exposed through browser-visible provider responses.
 
-Cross-user provider-account and credential references fail closed. OAuth authorization state is user-scoped, provider-scoped, short-lived, and single-use. Remote message content remains blocked by default until the approved privacy policy permits it.
+Cross-user provider-account and credential references fail closed. Gmail transport additionally verifies that the selected account belongs to the authenticated user and is actually a Gmail account before provider operations begin. OAuth authorization state is user-scoped, provider-scoped, short-lived, and single-use. Remote message content remains blocked by default until the approved privacy policy permits it.
 
 ## Validation
 
@@ -58,7 +62,7 @@ Run the trusted backend and Gmail foundation tests with:
 npm run test:backend
 ```
 
-GitHub Actions also runs source tests and static secret-safety checks on pull requests and development branches. The credential-vault and Gmail transport source changes have passed CI; later documentation-only changes may trigger another exact-head run.
+GitHub Actions also runs source tests and static secret-safety checks on pull requests and development branches.
 
 Passing source tests do not constitute production acceptance. Real provider connectivity, production persistence, credential storage, runtime hardening, target-environment validation, and production-readiness acceptance remain separate requirements.
 
