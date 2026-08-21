@@ -4,6 +4,12 @@
 -- state separately from reusable provider secrets. Secret values belong in the
 -- approved credential-vault implementation, not in these tables.
 
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  applied_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS provider_accounts (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -81,3 +87,6 @@ CREATE TABLE IF NOT EXISTS operation_idempotency (
 
 CREATE INDEX IF NOT EXISTS operation_idempotency_status_idx
   ON operation_idempotency (user_id, account_id, status, created_at);
+
+INSERT OR IGNORE INTO schema_migrations (version, name, applied_at)
+VALUES (1, 'baseline-mail-state', '2026-08-21T00:00:00.000Z');
