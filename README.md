@@ -4,9 +4,9 @@ Privacy-first, self-hosted GoreeCloud email client for web, Linux, and Android w
 
 ## Status
 
-Active development. The Glaze UI web foundation, provider-independent mail contract, same-origin provider gateway, trusted session identity boundary, user-scoped provider-account registry, OAuth authorization-state lifecycle, credential-vault abstraction, Gmail token lifecycle service, ownership-enforced Gmail account service, bounded provider request policy, isolated synchronization-state store, operation-idempotency foundation, fail-closed message-content rendering boundary, normalized provider errors, Wardveil message-link controls, Privacy Shield remote-content defaults, synthetic Gmail API transport, and durable-state schema blueprint are implemented as development foundations.
+Active development. The Glaze UI web foundation, provider-independent mail contract, same-origin provider gateway, trusted session identity boundary, user-scoped provider-account registry, OAuth authorization-state lifecycle, credential-vault abstraction, Gmail token lifecycle service, ownership-enforced Gmail account service, bounded provider request policy, synchronization-state and operation-idempotency foundations, fail-closed message-content rendering boundary, normalized provider errors, Wardveil message-link controls, Privacy Shield remote-content defaults, synthetic Gmail API transport, durable-state schema, and SQLite durable-state adapter are implemented.
 
-Production deployment is not approved. Real Gmail and IMAP/SMTP connectivity, approved durable persistence, production encrypted secret storage, an approved production HTML sanitizer, native packaging, and target-environment acceptance remain pending.
+Production deployment is not approved. Real Gmail and IMAP/SMTP connectivity, production encrypted secret storage, a maintained production HTML sanitizer, database migration/backup acceptance, native packaging, and target-environment acceptance remain pending.
 
 ## Role
 
@@ -23,19 +23,21 @@ GoreeCloud Mail is the first-party email client and communication interface for 
 
 The application uses a provider-independent mail layer with planned real-provider support for Gmail APIs and standards-based IMAP/SMTP providers. Browser clients communicate through an authenticated same-origin `/api/mail` gateway rather than receiving reusable provider credentials.
 
-Server-side development foundations enforce session-derived GoreeCloud user identity, user-scoped provider-account lookup, single-use and expiring OAuth authorization state, application-relative redirect validation, bounded provider errors, and a separate credential-vault boundary. The trusted Gmail API client resolves bearer tokens server-side and keeps them out of normalized client-facing records.
+Server-side foundations enforce session-derived GoreeCloud user identity, user-scoped provider-account lookup, single-use and expiring OAuth authorization state, application-relative redirect validation, bounded provider errors, and a separate credential-vault boundary. The trusted Gmail API client resolves bearer tokens server-side and keeps them out of normalized client-facing records.
 
 The Gmail token lifecycle service reuses unexpired access tokens, refreshes expired tokens through the trusted backend, preserves refresh credentials when providers omit a replacement, and can revoke authorization upstream before removing local credential state. The Gmail account service verifies session-derived ownership and provider type before any Gmail transport operation is allowed to run.
 
 Provider transport uses a bounded request policy with per-attempt timeouts, retry limits, exponential backoff, capped Retry-After handling, and retry classification that does not retry authentication failures. The policy is applied behind the trusted Gmail transport boundary rather than in browser code.
 
-`docs/persistence-schema.sql` defines the intended durable-state separation for provider-account metadata, credential references, OAuth authorization state, synchronization cursors, mailbox cache state, and operation-idempotency records. It deliberately stores only vault references for reusable credentials; secret values remain outside ordinary application persistence.
+`docs/persistence-schema.sql` defines durable-state separation for provider-account metadata, credential references, OAuth authorization state, synchronization cursors, mailbox cache state, and operation-idempotency records. Reusable provider secrets are deliberately absent from ordinary application tables.
 
-The development synchronization-state store mirrors those isolation semantics for cursor and mailbox synchronization status. The operation-idempotency store adds user/account/operation scoping so retries can reuse a prior operation safely while incompatible reuse of the same key fails with a conflict.
+`server/sqlite-state.js` is the first durable application-state implementation. It uses Node's SQLite runtime, enables foreign-key enforcement, initializes the repository schema idempotently, persists provider accounts, synchronization cursors, mailbox synchronization state, and operation-idempotency state across process restarts, and provides an explicit transaction boundary so synchronization and idempotency changes can be committed or rolled back together. Cross-user account and synchronization lookups remain fail-closed.
+
+The in-memory synchronization and idempotency components remain useful deterministic test doubles. Production acceptance of SQLite still requires migration/versioning policy, database-file permissions, backup/restore proof, corruption/recovery handling, target-filesystem validation, and operational observability.
 
 The message-content policy fails closed for HTML unless an approved sanitizer is injected. Plain text is HTML-escaped, remote content remains disabled by default, and defense-in-depth checks reject obviously active markup before and after sanitizer execution. These checks are not treated as a substitute for a production sanitizer.
 
-Current in-memory server components and injected synthetic Gmail responses exist to prove security, isolation, lifecycle, retry, synchronization, idempotency, content-boundary, and normalization semantics only. They must be replaced or connected to approved production persistence, secret storage, sanitizer, and provider transport before deployment.
+Injected synthetic Gmail responses continue to prove security, isolation, lifecycle, retry, synchronization, idempotency, content-boundary, and normalization semantics without connecting a real mailbox.
 
 The UI uses Glaze UI, security-sensitive experiences use Wardveil Security, and privacy protections align with GoreeCloud Privacy Shield.
 
@@ -70,7 +72,7 @@ npm run test:backend
 
 GitHub Actions also runs source tests and static secret-safety checks on pull requests and development branches. Exact-head CI is required after each material backend/security milestone before the source state is described as validated.
 
-Passing source tests do not constitute production acceptance. Real provider connectivity, production persistence, credential storage, approved HTML sanitization, runtime hardening, target-environment validation, and production-readiness acceptance remain separate requirements.
+Passing source tests do not constitute production acceptance. Real provider connectivity, production encrypted credential storage, approved HTML sanitization, durable database backup/recovery, runtime hardening, target-environment validation, and production-readiness acceptance remain separate requirements.
 
 ## License
 
