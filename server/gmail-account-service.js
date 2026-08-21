@@ -24,6 +24,15 @@ export class GmailAccountService {
     return this.gmailClientFactory(context).getMessage(context, messageId);
   }
 
+  async getAttachment({ session, accountId, messageId, attachmentId, maxBytes }) {
+    const context = this.#context({ session, accountId });
+    return this.gmailClientFactory(context).getAttachment(context, {
+      messageId,
+      attachmentId,
+      maxBytes,
+    });
+  }
+
   #context({ session, accountId }) {
     const { userId } = requireSessionUser(session);
     const account = this.accountService.get({ session, accountId });
