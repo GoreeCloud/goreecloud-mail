@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'agent/**'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Provider contract tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run unit tests
+        run: npm test
+
+  static-safety:
+    name: Static safety checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Reject committed environment files
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -vE '(^|/)\.env\.example$'; then
+            echo 'Committed environment files are not allowed.' >&2
+            exit 1
+          fi
+
+      - name: Reject obvious private-key material
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RIl --exclude-dir=.git -- 'BEGIN .*PRIVATE KEY' .; then
+            echo 'Private-key material must not be committed.' >&2
+            exit 1
+          fi
