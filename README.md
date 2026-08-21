@@ -6,6 +6,8 @@ Privacy-first, self-hosted GoreeCloud email client for web, Linux, and Android w
 
 Active development. The Glaze UI web foundation, provider-independent mail contract, same-origin provider gateway, trusted session identity boundary, user-scoped provider-account registry, OAuth authorization-state lifecycle, credential-vault abstraction, Gmail token lifecycle service, ownership-enforced Gmail account service, bounded provider request policy, synchronization-state and operation-idempotency foundations, fail-closed message-content rendering boundary, normalized provider errors, Wardveil message-link controls, Privacy Shield remote-content defaults, synthetic Gmail API transport, durable-state schema, and SQLite durable-state adapter are implemented.
 
+The SQLite adapter now also persists OAuth authorization state and provider credential-vault references. Raw OAuth state values are not stored; only SHA-256 state hashes are persisted. PKCE verifier material remains outside ordinary application state and may be represented only by a secret-store reference. Public credential-reference descriptors do not disclose the underlying vault key.
+
 Production deployment is not approved. Real Gmail and IMAP/SMTP connectivity, production encrypted secret storage, a maintained production HTML sanitizer, database migration/backup acceptance, native packaging, and target-environment acceptance remain pending.
 
 ## Role
@@ -31,9 +33,11 @@ Provider transport uses a bounded request policy with per-attempt timeouts, retr
 
 `docs/persistence-schema.sql` defines durable-state separation for provider-account metadata, credential references, OAuth authorization state, synchronization cursors, mailbox cache state, and operation-idempotency records. Reusable provider secrets are deliberately absent from ordinary application tables.
 
-`server/sqlite-state.js` is the first durable application-state implementation. It uses Node's SQLite runtime, enables foreign-key enforcement, initializes the repository schema idempotently, persists provider accounts, synchronization cursors, mailbox synchronization state, and operation-idempotency state across process restarts, and provides an explicit transaction boundary so synchronization and idempotency changes can be committed or rolled back together. Cross-user account and synchronization lookups remain fail-closed.
+`server/sqlite-state.js` is the first durable application-state implementation. It uses Node's SQLite runtime, enables foreign-key enforcement, initializes the repository schema idempotently, persists provider accounts, provider credential-vault references, OAuth authorization state, synchronization cursors, mailbox synchronization state, and operation-idempotency state across process restarts, and provides an explicit transaction boundary so related durable changes can be committed or rolled back together.
 
-The in-memory synchronization and idempotency components remain useful deterministic test doubles. Production acceptance of SQLite still requires migration/versioning policy, database-file permissions, backup/restore proof, corruption/recovery handling, target-filesystem validation, and operational observability.
+OAuth state is persisted by SHA-256 hash rather than as the browser-visible bearer value. Durable state consumption remains user- and provider-scoped, short-lived, and single-use. An optional PKCE verifier reference can be persisted, but not the verifier secret itself. Credential-reference APIs expose only a non-secret descriptor to ordinary callers; trusted backend code can resolve the stored vault key when it needs to address the separate secret store.
+
+The in-memory synchronization, OAuth-state, credential-vault, and idempotency components remain useful deterministic test doubles. Production acceptance of SQLite still requires migration/versioning policy, database-file permissions, backup/restore proof, corruption/recovery handling, target-filesystem validation, and operational observability. Production reusable credentials still require an approved encrypted secret-store adapter.
 
 The message-content policy fails closed for HTML unless an approved sanitizer is injected. Plain text is HTML-escaped, remote content remains disabled by default, and defense-in-depth checks reject obviously active markup before and after sanitizer execution. These checks are not treated as a substitute for a production sanitizer.
 
@@ -54,7 +58,7 @@ The UI uses Glaze UI, security-sensitive experiences use Wardveil Security, and 
 
 Email content, HTML, links, attachments, provider responses, and remote resources are untrusted input. Credentials, OAuth codes, refresh tokens, app passwords, session material, and other secrets must never be committed to this repository or exposed through browser-visible provider responses.
 
-Cross-user provider-account, credential, synchronization-state, and idempotency references fail closed. Gmail transport additionally verifies that the selected account belongs to the authenticated user and is actually a Gmail account before provider operations begin. OAuth authorization state is user-scoped, provider-scoped, short-lived, and single-use. Remote message content remains blocked by default until the approved privacy policy permits it.
+Cross-user provider-account, credential-reference, synchronization-state, and idempotency references fail closed. Gmail transport additionally verifies that the selected account belongs to the authenticated user and is actually a Gmail account before provider operations begin. OAuth authorization state is user-scoped, provider-scoped, short-lived, single-use, and stored only by hash in durable state. Remote message content remains blocked by default until the approved privacy policy permits it.
 
 ## Validation
 
