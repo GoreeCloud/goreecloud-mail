@@ -4,7 +4,7 @@
 -- state separately from reusable provider secrets. Secret values belong in the
 -- approved credential-vault implementation, not in these tables.
 
-CREATE TABLE provider_accounts (
+CREATE TABLE IF NOT EXISTS provider_accounts (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
   provider TEXT NOT NULL,
@@ -16,10 +16,10 @@ CREATE TABLE provider_accounts (
   UNIQUE (user_id, provider, external_account_id)
 );
 
-CREATE INDEX provider_accounts_user_idx
+CREATE INDEX IF NOT EXISTS provider_accounts_user_idx
   ON provider_accounts (user_id, provider);
 
-CREATE TABLE provider_credential_refs (
+CREATE TABLE IF NOT EXISTS provider_credential_refs (
   user_id TEXT NOT NULL,
   account_id TEXT NOT NULL,
   provider TEXT NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE provider_credential_refs (
   FOREIGN KEY (account_id) REFERENCES provider_accounts(id) ON DELETE CASCADE
 );
 
-CREATE TABLE oauth_authorization_state (
+CREATE TABLE IF NOT EXISTS oauth_authorization_state (
   state_hash TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
   provider TEXT NOT NULL,
@@ -39,10 +39,10 @@ CREATE TABLE oauth_authorization_state (
   consumed_at TEXT
 );
 
-CREATE INDEX oauth_authorization_state_expiry_idx
+CREATE INDEX IF NOT EXISTS oauth_authorization_state_expiry_idx
   ON oauth_authorization_state (expires_at);
 
-CREATE TABLE sync_cursors (
+CREATE TABLE IF NOT EXISTS sync_cursors (
   user_id TEXT NOT NULL,
   account_id TEXT NOT NULL,
   provider TEXT NOT NULL,
@@ -53,7 +53,7 @@ CREATE TABLE sync_cursors (
   FOREIGN KEY (account_id) REFERENCES provider_accounts(id) ON DELETE CASCADE
 );
 
-CREATE TABLE mailbox_cache_state (
+CREATE TABLE IF NOT EXISTS mailbox_cache_state (
   user_id TEXT NOT NULL,
   account_id TEXT NOT NULL,
   mailbox_id TEXT NOT NULL,
@@ -64,14 +64,14 @@ CREATE TABLE mailbox_cache_state (
   FOREIGN KEY (account_id) REFERENCES provider_accounts(id) ON DELETE CASCADE
 );
 
-CREATE TABLE operation_idempotency (
+CREATE TABLE IF NOT EXISTS operation_idempotency (
   user_id TEXT NOT NULL,
   account_id TEXT NOT NULL,
   operation TEXT NOT NULL,
   idempotency_key TEXT NOT NULL,
   request_fingerprint TEXT NOT NULL,
   status TEXT NOT NULL,
-  result_ref TEXT,
+  result_json TEXT,
   error_code TEXT,
   created_at TEXT NOT NULL,
   completed_at TEXT,
@@ -79,5 +79,5 @@ CREATE TABLE operation_idempotency (
   FOREIGN KEY (account_id) REFERENCES provider_accounts(id) ON DELETE CASCADE
 );
 
-CREATE INDEX operation_idempotency_status_idx
+CREATE INDEX IF NOT EXISTS operation_idempotency_status_idx
   ON operation_idempotency (user_id, account_id, status, created_at);
