@@ -2,14 +2,22 @@ import { GMAIL_TOKEN_ENDPOINT } from './gmail-oauth.js';
 import { normalizeProviderError, ProviderError, PROVIDER_ERROR_CODES } from '../web/providers/provider-error.js';
 
 const EXPIRY_SKEW_MS = 60_000;
+export const GMAIL_REVOCATION_ENDPOINT = 'https://oauth2.googleapis.com/revoke';
 
 export class GmailTokenService {
-  constructor({ credentialVault, fetchImpl = globalThis.fetch, tokenEndpoint = GMAIL_TOKEN_ENDPOINT, now = () => Date.now() } = {}) {
+  constructor({
+    credentialVault,
+    fetchImpl = globalThis.fetch,
+    tokenEndpoint = GMAIL_TOKEN_ENDPOINT,
+    revocationEndpoint = GMAIL_REVOCATION_ENDPOINT,
+    now = () => Date.now(),
+  } = {}) {
     if (!credentialVault) throw new TypeError('credentialVault is required');
     if (typeof fetchImpl !== 'function') throw new TypeError('fetchImpl is required');
     this.credentialVault = credentialVault;
     this.fetchImpl = fetchImpl;
     this.tokenEndpoint = tokenEndpoint;
+    this.revocationEndpoint = revocationEndpoint;
     this.now = now;
   }
 
@@ -52,7 +60,14 @@ export class GmailTokenService {
     return refreshed.access_token;
   }
 
-  async revoke({ userId, accountId }) {
+  async revoke({ userId, accountId, revokeUpstream = true }) {
+    const secret = this.credentialVault.get({ userId, accountId });
+
+    if (revokeUpstream) {
+      const token = secret.refreshToken || secret.accessToken;
+      if (token) await this.#revokeUpstream(token);
+    }
+
     this.credentialVault.remove({ userId, accountId });
     return { revoked: true };
   }
@@ -83,6 +98,25 @@ export class GmailTokenService {
         throw error;
       }
       return payload;
+    } catch (error) {
+      throw normalizeProviderError(error);
+    }
+  }
+
+  async #revokeUpstream(token) {
+    const body = new URLSearchParams({ token });
+
+    try {
+      const response = await this.fetchImpl(this.revocationEndpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+        body,
+      });
+      if (!response.ok) {
+        const error = new Error('Gmail token revocation failed.');
+        error.status = response.status;
+        throw error;
+      }
     } catch (error) {
       throw normalizeProviderError(error);
     }
