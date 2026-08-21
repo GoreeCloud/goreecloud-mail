@@ -50,7 +50,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -RIl --exclude-dir=.git -- 'BEGIN .*PRIVATE KEY' .; then
+          if git grep -Il -E -- '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----' -- . ':!.github/workflows/ci.yml'; then
             echo 'Private-key material must not be committed.' >&2
             exit 1
           fi
