@@ -87,6 +87,13 @@ export class EncryptedFileCredentialVault {
     return { removed: true };
   }
 
+  rotateEncryptionKey({ encryptionKey }) {
+    const nextKey = parseKey(encryptionKey);
+    this.#persist(nextKey);
+    this.#key = nextKey;
+    return { rotated: true };
+  }
+
   #find(userId, accountId) {
     requireText('userId', userId);
     requireText('accountId', accountId);
@@ -113,10 +120,10 @@ export class EncryptedFileCredentialVault {
     return parsed;
   }
 
-  #persist() {
+  #persist(encryptionKey = this.#key) {
     mkdirSync(dirname(this.#path), { recursive: true, mode: 0o700 });
     const iv = randomBytes(12);
-    const cipher = createCipheriv(ALGORITHM, this.#key, iv);
+    const cipher = createCipheriv(ALGORITHM, encryptionKey, iv);
     const plaintext = Buffer.from(JSON.stringify(this.#entries), 'utf8');
     const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
     const envelope = JSON.stringify({
