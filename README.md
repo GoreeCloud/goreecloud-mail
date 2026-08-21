@@ -62,7 +62,7 @@ Run the trusted backend and Gmail foundation tests with:
 npm run test:backend
 ```
 
-GitHub Actions also runs source tests and static secret-safety checks on pull requests and development branches.
+GitHub Actions also runs source tests and static secret-safety checks on pull requests and development branches. Exact-head CI run #92 / 32464932895 passed on `b788b45157ed53d633bd7d54a9ba6274cfa5a7e0` after the token lifecycle, Gmail ownership-enforcement, durable-state blueprint, tests, and backend documentation were integrated.
 
 Passing source tests do not constitute production acceptance. Real provider connectivity, production persistence, credential storage, runtime hardening, target-environment validation, and production-readiness acceptance remain separate requirements.
 
