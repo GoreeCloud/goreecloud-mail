@@ -1,6 +1,7 @@
 import { normalizeGmailLabel, normalizeGmailMessage } from './gmail-normalizer.js';
-import { normalizeProviderError } from '../web/providers/provider-error.js';
+import { normalizeProviderError, ProviderError, PROVIDER_ERROR_CODES } from '../web/providers/provider-error.js';
 import { runProviderRequest } from './provider-request-policy.js';
+import { DEFAULT_ATTACHMENT_LIMITS } from './attachment-content-policy.js';
 
 export const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
@@ -48,6 +49,32 @@ export class GmailApiClient {
     return normalizeGmailMessage(payload);
   }
 
+  async getAttachment(context, { messageId, attachmentId, maxBytes = DEFAULT_ATTACHMENT_LIMITS.downloadBytes } = {}) {
+    if (!messageId) throw new TypeError('messageId is required');
+    if (!attachmentId) throw new TypeError('attachmentId is required');
+    if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new TypeError('maxBytes must be a positive safe integer');
+
+    const payload = await this.#request(
+      `/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`,
+      context,
+    );
+    const bytes = decodeBase64Url(payload?.data);
+    const declaredSize = Number(payload?.size);
+
+    if (bytes.byteLength > maxBytes || (Number.isFinite(declaredSize) && declaredSize > maxBytes)) {
+      throw new ProviderError('The provider attachment exceeds the configured download limit.', {
+        code: PROVIDER_ERROR_CODES.INVALID_REQUEST,
+        status: 413,
+      });
+    }
+
+    return Object.freeze({
+      attachmentId: String(attachmentId),
+      size: Number.isFinite(declaredSize) && declaredSize >= 0 ? declaredSize : bytes.byteLength,
+      bytes,
+    });
+  }
+
   async #request(path, context) {
     const accessToken = await this.tokenResolver(context);
     if (!accessToken) throw new Error('Gmail access token is unavailable.');
@@ -75,6 +102,19 @@ export class GmailApiClient {
       throw normalizeProviderError(error);
     }
   }
+}
+
+export function decodeBase64Url(value) {
+  if (typeof value !== 'string' || !value) return Buffer.alloc(0);
+  if (!/^[A-Za-z0-9_-]*={0,2}$/.test(value)) {
+    throw new ProviderError('The provider returned invalid attachment data.', {
+      code: PROVIDER_ERROR_CODES.UNKNOWN,
+      status: 502,
+    });
+  }
+  const normalized = value.replaceAll('-', '+').replaceAll('_', '/');
+  const padding = '='.repeat((4 - (normalized.length % 4)) % 4);
+  return Buffer.from(normalized + padding, 'base64');
 }
 
 function parseRetryAfter(value) {
