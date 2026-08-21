@@ -97,6 +97,33 @@ test('SQLite synchronization state persists and preserves last successful sync a
   });
 });
 
+test('SQLite attachment metadata persists, remains owner-scoped, and supports bounded retention cleanup', () => {
+  withDatabase(({ path }) => {
+    let state = new SqliteMailState({ path });
+    const account = state.createProviderAccount({ userId: 'user-a', provider: 'gmail' });
+    const record = state.putAttachmentDeliveryRecord({
+      userId: 'user-a', accountId: account.id, objectId: 'object-1', messageId: 'message-1', attachmentId: 'attachment-1',
+      filename: 'invoice.pdf', mimeType: 'application/pdf', sniffedMimeType: 'application/pdf', size: 7,
+      sha256: 'b'.repeat(64), createdAt: '2026-08-21T15:00:00.000Z', expiresAt: '2026-08-21T16:00:00.000Z',
+    });
+    assert.equal(record.filename, 'invoice.pdf');
+    assert.equal(Object.hasOwn(record, 'userId'), false);
+    assert.throws(() => state.getAttachmentDeliveryRecord({ userId: 'user-b', objectId: 'object-1' }), SyncStateNotFoundError);
+    state.close();
+
+    state = new SqliteMailState({ path });
+    assert.equal(state.getAttachmentDeliveryRecord({ userId: 'user-a', objectId: 'object-1' }).sha256, 'b'.repeat(64));
+    assert.equal(state.listExpiredAttachmentDeliveryRecords({ now: '2026-08-21T15:30:00.000Z' }).length, 0);
+    const expired = state.listExpiredAttachmentDeliveryRecords({ now: '2026-08-21T16:00:00.000Z' });
+    assert.equal(expired.length, 1);
+    assert.equal(expired[0].userId, 'user-a');
+    assert.equal(state.touchAttachmentDeliveryRecord({ userId: 'user-a', objectId: 'object-1', accessedAt: '2026-08-21T15:45:00.000Z' }).lastAccessedAt, '2026-08-21T15:45:00.000Z');
+    state.removeAttachmentDeliveryRecord({ userId: 'user-a', objectId: 'object-1' });
+    assert.throws(() => state.getAttachmentDeliveryRecord({ userId: 'user-a', objectId: 'object-1' }), SyncStateNotFoundError);
+    state.close();
+  });
+});
+
 test('SQLite idempotency state rejects incompatible key reuse and persists completed results', () => {
   withDatabase(({ path }) => {
     let state = new SqliteMailState({ path });
