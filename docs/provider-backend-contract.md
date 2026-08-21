@@ -24,7 +24,7 @@ Provider authorization state belongs in trusted server-side storage.
 
 For Gmail, the intended flow is authorization code with PKCE. The backend creates short-lived authorization state, validates the callback state and redirect target, exchanges the authorization code with Google, and stores reusable provider credentials only in approved secret storage.
 
-The current Gmail OAuth source can generate PKCE S256 verifier/challenge pairs, construct the Google authorization request, and construct an authorization-code token-exchange request body. It does not perform a real token exchange and contains no production OAuth secret or provider token.
+The current Gmail OAuth source can generate PKCE S256 verifier/challenge pairs, construct the Google authorization request, and construct an authorization-code token-exchange request body. It does not perform a real authorization-code exchange and contains no production OAuth secret or provider token.
 
 For standards-based accounts, the backend owns IMAP/SMTP OAuth credentials or, only where necessary, application passwords or mailbox passwords. Those values are never returned by provider-account APIs after enrollment.
 
@@ -41,6 +41,14 @@ The development in-memory credential vault proves these semantics:
 - removal invalidates subsequent reads.
 
 The in-memory vault is not approved for production. Production must use an approved encrypted secret store with explicit access controls, lifecycle and revocation behavior, backup/recovery decisions, auditing appropriate to sensitive material, and no routine secret disclosure through logs or client responses.
+
+## Gmail token lifecycle
+
+The trusted backend includes a Gmail token lifecycle service. It reuses an access token only while it remains valid beyond a safety skew, refreshes expired access tokens using the stored refresh credential, preserves the existing refresh token when Google does not return a replacement, updates expiration metadata, and normalizes refresh failures before they reach higher layers.
+
+Local revocation removes the stored reusable provider authorization state from the credential-vault boundary. Production revocation must additionally define when and how upstream Google revocation is attempted, how failures are recorded, and how local removal remains fail-safe even if the provider is unavailable.
+
+The token lifecycle service never accepts a browser-supplied bearer token as authorization for mailbox operations.
 
 ## Normalized provider operations
 
@@ -73,13 +81,13 @@ Missing provider values remain absent or null rather than being invented. Messag
 
 ## Gmail transport boundary
 
-The trusted backend now includes a Gmail API client foundation that accepts a server-side token resolver rather than a raw browser-provided token. The client can list labels, list message references, and retrieve a full message through the Gmail API contract while normalizing provider errors before they cross the backend boundary.
+The trusted backend includes a Gmail API client foundation that accepts a server-side token resolver rather than a raw browser-provided token. The client can list labels, list message references, and retrieve a full message through the Gmail API contract while normalizing provider errors before they cross the backend boundary.
 
 Bearer authorization is attached only inside the trusted transport request. Access tokens are not included in normalized labels, message references, normalized messages, or public error bodies.
 
-The current transport is still a development foundation. Tests use injected synthetic responses; no real Google account, token, or mailbox has been connected. Production use additionally requires token refresh/revocation handling, bounded timeouts, retry policy, rate-limit policy, observability without secret leakage, and end-to-end account ownership enforcement around each transport call.
+A Gmail account service now sits in front of transport operations. It derives the user from trusted session state, resolves the opaque provider account through the user-scoped account service, verifies that the account is a Gmail account, and only then creates or invokes Gmail transport. Cross-user account references therefore fail before a Gmail API client is used.
 
-Source validation has passed for the credential-vault and Gmail transport foundation. This does not authorize real-provider connectivity or production use.
+The current transport is still a development foundation. Tests use injected synthetic responses; no real Google account, token, or mailbox has been connected. Production use additionally requires bounded timeouts, retry policy, rate-limit policy, observability without secret leakage, and approved durable persistence/secret storage.
 
 ## Account isolation
 
@@ -111,7 +119,9 @@ Provider responses and message content remain untrusted even after successful pr
 
 The provider remains authoritative for mailbox state. GoreeCloud Mail may persist normalized metadata, synchronization cursors, search indexes, offline cache records, and notification state. Cached message content must follow retention, encryption, account-isolation, and deletion rules before production use.
 
-The development in-memory provider-account registry, OAuth-state store, and credential vault are not approved production persistence mechanisms. Production storage must preserve user/account isolation and separate reusable provider credentials from ordinary application records.
+`docs/persistence-schema.sql` is the current durable-state blueprint. It separates provider-account metadata, credential references, OAuth state, synchronization cursors, and mailbox cache state. Reusable secret values are deliberately absent from ordinary application tables; only a vault reference may be persisted there.
+
+The development in-memory provider-account registry, OAuth-state store, and credential vault are not approved production persistence mechanisms. Production storage must preserve user/account isolation, enforce referential integrity, and separate reusable provider credentials from ordinary application records.
 
 ## Acceptance requirements
 
@@ -127,4 +137,7 @@ Real-provider connectivity is not production-ready until tests prove at minimum:
 8. provider-account API routing cannot override session-derived user ownership;
 9. Gmail provider payloads are normalized without inventing missing data or passing unsafe provider content directly into shared rendering paths;
 10. provider credentials remain isolated in the credential-vault boundary and cannot be retrieved by another GoreeCloud user;
-11. Gmail transport responses never return bearer tokens or raw upstream error bodies to client-facing code.
+11. Gmail transport responses never return bearer tokens or raw upstream error bodies to client-facing code;
+12. Gmail transport cannot run for a provider account owned by another user or for a non-Gmail provider account;
+13. expired access tokens are refreshed server-side without exposing refresh credentials to clients;
+14. durable state stores vault references rather than reusable provider secret values.
