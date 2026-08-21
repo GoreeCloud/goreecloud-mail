@@ -79,6 +79,8 @@ Bearer authorization is attached only inside the trusted transport request. Acce
 
 The current transport is still a development foundation. Tests use injected synthetic responses; no real Google account, token, or mailbox has been connected. Production use additionally requires token refresh/revocation handling, bounded timeouts, retry policy, rate-limit policy, observability without secret leakage, and end-to-end account ownership enforcement around each transport call.
 
+Source validation has passed for the credential-vault and Gmail transport foundation. This does not authorize real-provider connectivity or production use.
+
 ## Account isolation
 
 All account, mailbox, message, attachment, draft, synchronization, and credential lookups must include the authenticated GoreeCloud user scope. Provider-native identifiers are not globally trusted identifiers.
