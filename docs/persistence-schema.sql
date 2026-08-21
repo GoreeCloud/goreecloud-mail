@@ -63,3 +63,21 @@ CREATE TABLE mailbox_cache_state (
   PRIMARY KEY (user_id, account_id, mailbox_id),
   FOREIGN KEY (account_id) REFERENCES provider_accounts(id) ON DELETE CASCADE
 );
+
+CREATE TABLE operation_idempotency (
+  user_id TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  operation TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  request_fingerprint TEXT NOT NULL,
+  status TEXT NOT NULL,
+  result_ref TEXT,
+  error_code TEXT,
+  created_at TEXT NOT NULL,
+  completed_at TEXT,
+  PRIMARY KEY (user_id, account_id, operation, idempotency_key),
+  FOREIGN KEY (account_id) REFERENCES provider_accounts(id) ON DELETE CASCADE
+);
+
+CREATE INDEX operation_idempotency_status_idx
+  ON operation_idempotency (user_id, account_id, status, created_at);
