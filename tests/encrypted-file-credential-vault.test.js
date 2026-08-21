@@ -8,6 +8,7 @@ import { EncryptedFileCredentialVault } from '../server/encrypted-file-credentia
 import { CredentialNotFoundError } from '../server/credential-vault.js';
 
 const KEY = Buffer.alloc(32, 7);
+const ROTATED_KEY = Buffer.alloc(32, 9);
 
 function withVault(callback) {
   const dir = mkdtempSync(join(tmpdir(), 'goreecloud-mail-vault-'));
@@ -55,6 +56,28 @@ test('encrypted credential vault fails authentication with the wrong encryption 
     const vault = new EncryptedFileCredentialVault({ path, encryptionKey: KEY });
     vault.put({ userId: 'user-a', accountId: 'account-a', provider: 'gmail', secret: { token: 'one' } });
     assert.throws(() => new EncryptedFileCredentialVault({ path, encryptionKey: Buffer.alloc(32, 8) }));
+  });
+});
+
+test('encrypted credential vault rotates encryption keys without exposing provider secrets', () => {
+  withVault(({ path }) => {
+    const vault = new EncryptedFileCredentialVault({ path, encryptionKey: KEY });
+    vault.put({
+      userId: 'user-a',
+      accountId: 'account-a',
+      provider: 'gmail',
+      secret: { refreshToken: 'rotation-secret' },
+    });
+
+    assert.deepEqual(vault.rotateEncryptionKey({ encryptionKey: ROTATED_KEY }), { rotated: true });
+    assert.equal(statSync(path).mode & 0o777, 0o600);
+    assert.doesNotMatch(readFileSync(path, 'utf8'), /rotation-secret|user-a|account-a/);
+    assert.throws(() => new EncryptedFileCredentialVault({ path, encryptionKey: KEY }));
+
+    const reopened = new EncryptedFileCredentialVault({ path, encryptionKey: ROTATED_KEY });
+    assert.deepEqual(reopened.get({ userId: 'user-a', accountId: 'account-a' }), {
+      refreshToken: 'rotation-secret',
+    });
   });
 });
 
