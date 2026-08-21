@@ -46,13 +46,19 @@ Cross-user provider-account references fail closed. OAuth authorization state is
 
 ## Validation
 
-Run the source test suite with:
+Run the complete source test suite with:
 
 ```bash
 npm test
 ```
 
-GitHub Actions also runs provider-contract tests and static secret-safety checks on pull requests and development branches.
+Run the trusted-backend-focused suite with:
+
+```bash
+npm run test:backend
+```
+
+GitHub Actions also runs source tests and static secret-safety checks on pull requests and development branches.
 
 ## License
 
