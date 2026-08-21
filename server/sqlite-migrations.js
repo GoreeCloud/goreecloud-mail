@@ -45,7 +45,7 @@ export function applySqliteMigrations(db, { now = () => new Date().toISOString()
     db.exec('BEGIN IMMEDIATE;');
     try {
       db.exec(migration.sql);
-      db.prepare('INSERT INTO schema_migrations (version,name,applied_at) VALUES (?,?,?)')
+      db.prepare('INSERT OR IGNORE INTO schema_migrations (version,name,applied_at) VALUES (?,?,?)')
         .run(migration.version, migration.name, now());
       db.exec('COMMIT;');
       newlyApplied.push(migration.version);
@@ -62,7 +62,12 @@ export function applySqliteMigrations(db, { now = () => new Date().toISOString()
 }
 
 export function currentSqliteSchemaVersion(db) {
-  ensureMigrationTable(db);
-  const row = db.prepare('SELECT COALESCE(MAX(version),0) AS version FROM schema_migrations').get();
-  return Number(row.version);
+  if (!db || typeof db.prepare !== 'function') throw new TypeError('db must be a SQLite database');
+  try {
+    const row = db.prepare('SELECT COALESCE(MAX(version),0) AS version FROM schema_migrations').get();
+    return Number(row.version);
+  } catch (error) {
+    if (/no such table: schema_migrations/i.test(String(error?.message))) return 0;
+    throw error;
+  }
 }
