@@ -46,7 +46,7 @@ The in-memory vault is not approved for production. Production must use an appro
 
 The trusted backend includes a Gmail token lifecycle service. It reuses an access token only while it remains valid beyond a safety skew, refreshes expired access tokens using the stored refresh credential, preserves the existing refresh token when Google does not return a replacement, updates expiration metadata, and normalizes refresh failures before they reach higher layers.
 
-Revocation can now attempt upstream Google token revocation before local credential removal. The refresh token is preferred for revocation when present, with the access token used only as a fallback. If upstream revocation fails, local credential state is retained so the operation can be retried deliberately rather than silently reporting success. A local-only revocation path remains available for already-invalid or administratively cleared provider credentials.
+Revocation can attempt upstream Google token revocation before local credential removal. The refresh token is preferred for revocation when present, with the access token used only as a fallback. If upstream revocation fails, local credential state is retained so the operation can be retried deliberately rather than silently reporting success. A local-only revocation path remains available for already-invalid or administratively cleared provider credentials.
 
 The token lifecycle service never accepts a browser-supplied bearer token as authorization for mailbox operations.
 
@@ -87,7 +87,7 @@ Bearer authorization is attached only inside the trusted transport request. Acce
 
 A Gmail account service sits in front of transport operations. It derives the user from trusted session state, resolves the opaque provider account through the user-scoped account service, verifies that the account is a Gmail account, and only then creates or invokes Gmail transport. Cross-user account references therefore fail before a Gmail API client is used.
 
-Provider requests now run through a bounded transport policy. Each attempt has a timeout, retry count is finite, exponential backoff is capped, Retry-After hints are capped before use, and authentication failures are not retried. Retryable failures include rate limits and selected temporary upstream failures. Timeout failures become bounded retryable temporary-provider errors rather than exposing low-level transport details.
+Provider requests run through a bounded transport policy. Each attempt has a timeout, retry count is finite, exponential backoff is capped, Retry-After hints are capped before use, and authentication failures are not retried. Retryable failures include rate limits and selected temporary upstream failures. Timeout failures become bounded retryable temporary-provider errors rather than exposing low-level transport details.
 
 The current transport is still a development foundation. Tests use injected synthetic responses; no real Google account, token, or mailbox has been connected. Production use additionally requires production observability without secret leakage and approved durable persistence/secret storage.
 
@@ -99,9 +99,17 @@ Cursor records are scoped by GoreeCloud user, provider account, and cursor type.
 
 Production synchronization persistence must provide transactional updates, durable recovery, account-isolated lookups, cursor monotonicity rules where provider semantics require them, and idempotent replay behavior for queued operations.
 
+## Operation-idempotency boundary
+
+Potentially repeated or destructive backend operations require a stable idempotency boundary before production synchronization and offline replay are enabled. The development idempotency store scopes records by GoreeCloud user, provider account, normalized operation, and idempotency key.
+
+The same key may be reused only when the request fingerprint matches the original operation. Reuse with incompatible input fails with a conflict. Completed results are copied before exposure, failed operations store only bounded error codes, and cross-user lookups fail closed.
+
+`docs/persistence-schema.sql` includes a durable `operation_idempotency` record blueprint. Production implementation must make begin/commit/fail transitions transactional with the state mutation they protect, define expiration and garbage-collection policy, and avoid persisting private message bodies or secret material inside idempotency results.
+
 ## Account isolation
 
-All account, mailbox, message, attachment, draft, synchronization, and credential lookups must include the authenticated GoreeCloud user scope. Provider-native identifiers are not globally trusted identifiers.
+All account, mailbox, message, attachment, draft, synchronization, idempotency, and credential lookups must include the authenticated GoreeCloud user scope. Provider-native identifiers are not globally trusted identifiers.
 
 Cross-account and cross-user object references fail closed. The backend must not reveal whether an inaccessible object exists for another user.
 
@@ -123,15 +131,19 @@ Provider errors are translated to bounded GoreeCloud Mail errors before reaching
 
 ## Message-content boundary
 
-Provider responses and message content remain untrusted even after successful provider authentication. HTML rendering requires a dedicated sanitizer boundary. Remote resources remain blocked by default under Privacy Shield. Attachments are inert data until explicitly opened or downloaded through an approved path.
+Provider responses and message content remain untrusted even after successful provider authentication. The message-content policy now defines a fail-closed rendering boundary: plain text is HTML-escaped and HTML is refused unless an approved sanitizer implementation is explicitly injected.
+
+Defense-in-depth checks reject obviously active markup, event-handler attributes, and active URL schemes both before and after sanitizer execution. These checks are intentionally not represented as a standalone sanitizer. Production HTML rendering remains blocked until a maintained, independently tested sanitizer is integrated and configured with a restrictive allowlist.
+
+Sanitized HTML still has remote content disabled by default. Privacy Shield controls remain responsible for deliberate remote-resource loading. Attachments remain inert data until explicitly opened or downloaded through an approved path.
 
 ## Persistence direction
 
 The provider remains authoritative for mailbox state. GoreeCloud Mail may persist normalized metadata, synchronization cursors, search indexes, offline cache records, and notification state. Cached message content must follow retention, encryption, account-isolation, and deletion rules before production use.
 
-`docs/persistence-schema.sql` is the current durable-state blueprint. It separates provider-account metadata, credential references, OAuth state, synchronization cursors, and mailbox cache state. Reusable secret values are deliberately absent from ordinary application tables; only a vault reference may be persisted there.
+`docs/persistence-schema.sql` is the current durable-state blueprint. It separates provider-account metadata, credential references, OAuth state, synchronization cursors, mailbox cache state, and operation-idempotency state. Reusable secret values are deliberately absent from ordinary application tables; only a vault reference may be persisted there.
 
-The development in-memory provider-account registry, OAuth-state store, credential vault, and synchronization-state store are not approved production persistence mechanisms. Production storage must preserve user/account isolation, enforce referential integrity, and separate reusable provider credentials from ordinary application records.
+The development in-memory provider-account registry, OAuth-state store, credential vault, synchronization-state store, and idempotency store are not approved production persistence mechanisms. Production storage must preserve user/account isolation, enforce referential integrity, and separate reusable provider credentials from ordinary application records.
 
 ## Acceptance requirements
 
@@ -153,4 +165,7 @@ Real-provider connectivity is not production-ready until tests prove at minimum:
 14. durable state stores vault references rather than reusable provider secret values;
 15. upstream provider revocation failures do not silently erase the only local retry state;
 16. provider transport applies finite timeout/retry/backoff behavior and does not retry authentication failures;
-17. synchronization cursors and mailbox state remain isolated by user and provider account.
+17. synchronization cursors and mailbox state remain isolated by user and provider account;
+18. repeated operations cannot reuse an idempotency key with incompatible input;
+19. operation-idempotency transitions are transactionally coupled to protected production state changes;
+20. message HTML cannot render without the approved sanitizer and remote resources remain blocked by default.
