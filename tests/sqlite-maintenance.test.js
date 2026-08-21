@@ -20,25 +20,26 @@ test('migration framework initializes an empty SQLite database exactly once', ()
     const path = join(dir, 'empty.sqlite3');
     const db = new DatabaseSync(path);
     const first = applySqliteMigrations(db, { now: () => '2026-08-21T13:00:00.000Z' });
-    assert.equal(first.currentVersion, 1);
-    assert.deepEqual(first.newlyApplied, [1]);
+    assert.equal(first.currentVersion, 2);
+    assert.deepEqual(first.newlyApplied, [1, 2]);
 
     const second = applySqliteMigrations(db, { now: () => '2026-08-21T14:00:00.000Z' });
-    assert.equal(second.currentVersion, 1);
+    assert.equal(second.currentVersion, 2);
     assert.deepEqual(second.newlyApplied, []);
-    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get().count, 1);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get().count, 2);
+    assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='attachment_delivery_records'").get());
     db.close();
   });
 });
 
-test('existing SqliteMailState databases report the baseline schema version', () => {
+test('existing SqliteMailState databases report the current schema version', () => {
   withTempDir((dir) => {
     const path = join(dir, 'mail.sqlite3');
     const state = new SqliteMailState({ path });
     state.close();
 
     const db = new DatabaseSync(path, { readOnly: true });
-    assert.equal(currentSqliteSchemaVersion(db), 1);
+    assert.equal(currentSqliteSchemaVersion(db), 2);
     db.close();
   });
 });
@@ -54,11 +55,16 @@ test('SQLite backup preserves account state and passes integrity verification', 
     state.putCursor({
       userId: 'user-a', accountId: account.id, provider: 'gmail', cursorType: 'history-id', cursorValue: '321',
     });
+    state.putAttachmentDeliveryRecord({
+      userId: 'user-a', accountId: account.id, objectId: 'object-a', messageId: 'message-a', attachmentId: 'attachment-a',
+      filename: 'invoice.pdf', mimeType: 'application/pdf', sniffedMimeType: 'application/pdf', size: 7,
+      sha256: 'a'.repeat(64), createdAt: '2026-08-21T13:00:00.000Z', expiresAt: '2026-08-22T13:00:00.000Z',
+    });
     state.close();
 
     const created = createSqliteBackup({ sourcePath, backupPath });
     assert.equal(created.integrity, 'ok');
-    assert.equal(created.schemaVersion, 1);
+    assert.equal(created.schemaVersion, 2);
 
     const verified = verifySqliteBackup({ path: backupPath });
     assert.equal(verified.integrity, 'ok');
@@ -66,6 +72,7 @@ test('SQLite backup preserves account state and passes integrity verification', 
     const restored = new SqliteMailState({ path: backupPath });
     assert.equal(restored.getProviderAccountForUser('user-a', account.id).displayName, 'Primary Gmail');
     assert.equal(restored.getCursor({ userId: 'user-a', accountId: account.id, cursorType: 'history-id' }).cursorValue, '321');
+    assert.equal(restored.getAttachmentDeliveryRecord({ userId: 'user-a', objectId: 'object-a' }).filename, 'invoice.pdf');
     restored.close();
   });
 });
