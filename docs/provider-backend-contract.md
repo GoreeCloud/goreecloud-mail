@@ -46,7 +46,7 @@ The in-memory vault is not approved for production. Production must use an appro
 
 The trusted backend includes a Gmail token lifecycle service. It reuses an access token only while it remains valid beyond a safety skew, refreshes expired access tokens using the stored refresh credential, preserves the existing refresh token when Google does not return a replacement, updates expiration metadata, and normalizes refresh failures before they reach higher layers.
 
-Local revocation removes the stored reusable provider authorization state from the credential-vault boundary. Production revocation must additionally define when and how upstream Google revocation is attempted, how failures are recorded, and how local removal remains fail-safe even if the provider is unavailable.
+Revocation can now attempt upstream Google token revocation before local credential removal. The refresh token is preferred for revocation when present, with the access token used only as a fallback. If upstream revocation fails, local credential state is retained so the operation can be retried deliberately rather than silently reporting success. A local-only revocation path remains available for already-invalid or administratively cleared provider credentials.
 
 The token lifecycle service never accepts a browser-supplied bearer token as authorization for mailbox operations.
 
@@ -85,9 +85,19 @@ The trusted backend includes a Gmail API client foundation that accepts a server
 
 Bearer authorization is attached only inside the trusted transport request. Access tokens are not included in normalized labels, message references, normalized messages, or public error bodies.
 
-A Gmail account service now sits in front of transport operations. It derives the user from trusted session state, resolves the opaque provider account through the user-scoped account service, verifies that the account is a Gmail account, and only then creates or invokes Gmail transport. Cross-user account references therefore fail before a Gmail API client is used.
+A Gmail account service sits in front of transport operations. It derives the user from trusted session state, resolves the opaque provider account through the user-scoped account service, verifies that the account is a Gmail account, and only then creates or invokes Gmail transport. Cross-user account references therefore fail before a Gmail API client is used.
 
-The current transport is still a development foundation. Tests use injected synthetic responses; no real Google account, token, or mailbox has been connected. Production use additionally requires bounded timeouts, retry policy, rate-limit policy, observability without secret leakage, and approved durable persistence/secret storage.
+Provider requests now run through a bounded transport policy. Each attempt has a timeout, retry count is finite, exponential backoff is capped, Retry-After hints are capped before use, and authentication failures are not retried. Retryable failures include rate limits and selected temporary upstream failures. Timeout failures become bounded retryable temporary-provider errors rather than exposing low-level transport details.
+
+The current transport is still a development foundation. Tests use injected synthetic responses; no real Google account, token, or mailbox has been connected. Production use additionally requires production observability without secret leakage and approved durable persistence/secret storage.
+
+## Synchronization-state boundary
+
+Synchronization cursors and mailbox synchronization status are account-scoped application state, not provider credentials. The development synchronization-state store mirrors the durable schema semantics while remaining dependency-free for tests.
+
+Cursor records are scoped by GoreeCloud user, provider account, and cursor type. Mailbox state is scoped by GoreeCloud user, provider account, and mailbox identifier. Public records omit the owning user identifier. Failed attempts preserve the last successful synchronization time, while a later successful synchronization clears stale error state.
+
+Production synchronization persistence must provide transactional updates, durable recovery, account-isolated lookups, cursor monotonicity rules where provider semantics require them, and idempotent replay behavior for queued operations.
 
 ## Account isolation
 
@@ -121,7 +131,7 @@ The provider remains authoritative for mailbox state. GoreeCloud Mail may persis
 
 `docs/persistence-schema.sql` is the current durable-state blueprint. It separates provider-account metadata, credential references, OAuth state, synchronization cursors, and mailbox cache state. Reusable secret values are deliberately absent from ordinary application tables; only a vault reference may be persisted there.
 
-The development in-memory provider-account registry, OAuth-state store, and credential vault are not approved production persistence mechanisms. Production storage must preserve user/account isolation, enforce referential integrity, and separate reusable provider credentials from ordinary application records.
+The development in-memory provider-account registry, OAuth-state store, credential vault, and synchronization-state store are not approved production persistence mechanisms. Production storage must preserve user/account isolation, enforce referential integrity, and separate reusable provider credentials from ordinary application records.
 
 ## Acceptance requirements
 
@@ -140,4 +150,7 @@ Real-provider connectivity is not production-ready until tests prove at minimum:
 11. Gmail transport responses never return bearer tokens or raw upstream error bodies to client-facing code;
 12. Gmail transport cannot run for a provider account owned by another user or for a non-Gmail provider account;
 13. expired access tokens are refreshed server-side without exposing refresh credentials to clients;
-14. durable state stores vault references rather than reusable provider secret values.
+14. durable state stores vault references rather than reusable provider secret values;
+15. upstream provider revocation failures do not silently erase the only local retry state;
+16. provider transport applies finite timeout/retry/backoff behavior and does not retry authentication failures;
+17. synchronization cursors and mailbox state remain isolated by user and provider account.
