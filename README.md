@@ -58,7 +58,7 @@ Run the trusted-backend-focused suite with:
 npm run test:backend
 ```
 
-GitHub Actions also runs source tests and static secret-safety checks on pull requests and development branches.
+GitHub Actions runs source tests and static secret-safety checks on pull requests and development branches. Passing source CI confirms the development contract only; it does not constitute real-provider or production acceptance.
 
 ## License
 
