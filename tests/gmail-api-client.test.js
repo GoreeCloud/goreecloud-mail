@@ -51,6 +51,42 @@ test('Gmail API listMessages clamps result count and preserves pagination metada
   assert.equal(result.nextPageToken, 'next');
 });
 
+test('Gmail attachment retrieval decodes base64url and keeps bearer token server-side', async () => {
+  const expected = Buffer.from('%PDF-x\n', 'ascii');
+  const calls = [];
+  const client = new GmailApiClient({
+    tokenResolver: async () => 'server-only-token',
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return jsonResponse({ size: expected.length, data: expected.toString('base64url') });
+    },
+  });
+
+  const result = await client.getAttachment({ userId: 'u1', accountId: 'a1' }, {
+    messageId: 'message/1',
+    attachmentId: 'attachment/1',
+    maxBytes: 1024,
+  });
+  assert.deepEqual(result.bytes, expected);
+  assert.equal(result.size, expected.length);
+  assert.match(calls[0].url, /messages\/message%2F1\/attachments\/attachment%2F1$/);
+  assert.equal(calls[0].options.headers.authorization, 'Bearer server-only-token');
+  assert.doesNotMatch(JSON.stringify({ attachmentId: result.attachmentId, size: result.size }), /server-only-token/);
+});
+
+test('Gmail attachment retrieval rejects provider payloads above configured limit', async () => {
+  const bytes = Buffer.alloc(12, 1);
+  const client = new GmailApiClient({
+    tokenResolver: async () => 'token',
+    fetchImpl: async () => jsonResponse({ size: bytes.length, data: bytes.toString('base64url') }),
+  });
+
+  await assert.rejects(
+    () => client.getAttachment({}, { messageId: 'm1', attachmentId: 'a1', maxBytes: 8 }),
+    (error) => error.code === PROVIDER_ERROR_CODES.INVALID_REQUEST && error.status === 413,
+  );
+});
+
 test('Gmail API failures become normalized provider errors without response-body leakage', async () => {
   const client = new GmailApiClient({
     tokenResolver: async () => 'token',
