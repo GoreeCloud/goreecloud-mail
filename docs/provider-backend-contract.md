@@ -10,11 +10,21 @@ Every `/api/mail` request must be associated with an authenticated GoreeCloud Ma
 
 Provider-account records are scoped to the authenticated GoreeCloud user. A provider account identifier is an opaque GoreeCloud identifier and must not grant access when presented by a different user.
 
+## Provider-account API boundary
+
+Provider-account operations are routed through a trusted service that derives ownership from the authenticated session. The development router currently exposes normalized account operations under `/api/mail/accounts` for listing, creating, retrieving, and removing provider-account records.
+
+Cross-user references fail closed with the same not-found state used for absent records. Public provider-account representations do not expose the internal GoreeCloud owning-user identifier.
+
+The current router and account registry are development foundations only. Production deployment requires approved persistent storage, request parsing and body limits, CSRF/session protections appropriate to the chosen web framework, rate limiting where required, and integration with the production authentication boundary.
+
 ## Authorization state
 
 Provider authorization state belongs in trusted server-side storage.
 
-For Gmail, the intended flow is authorization code with PKCE where applicable. The backend creates short-lived authorization state, validates the callback state and redirect target, exchanges the authorization code with Google, and stores reusable provider credentials only in approved secret storage.
+For Gmail, the intended flow is authorization code with PKCE. The backend creates short-lived authorization state, validates the callback state and redirect target, exchanges the authorization code with Google, and stores reusable provider credentials only in approved secret storage.
+
+The current Gmail OAuth source can generate PKCE S256 verifier/challenge pairs, construct the Google authorization request, and construct an authorization-code token-exchange request body. It does not perform a real token exchange and contains no production OAuth secret or provider token.
 
 For standards-based accounts, the backend owns IMAP/SMTP OAuth credentials or, only where necessary, application passwords or mailbox passwords. Those values are never returned by provider-account APIs after enrollment.
 
@@ -40,6 +50,12 @@ Supported logical operations remain:
 - capabilities
 
 Unsupported capabilities must be explicit rather than inferred from errors.
+
+## Gmail normalization foundation
+
+Gmail-native message and label records must be normalized before they enter shared client logic. The development normalizer currently maps synthetic Gmail message metadata into provider-independent identifiers, thread identifiers, subject, sender, recipients, date, snippet, unread/starred state, labels, estimated size, and attachment-presence fields.
+
+Missing provider values remain absent or null rather than being invented. Message bodies, HTML, MIME parts, attachment downloads, and synchronization history remain separate future normalization boundaries and must be handled as untrusted provider input.
 
 ## Account isolation
 
@@ -71,6 +87,8 @@ Provider responses and message content remain untrusted even after successful pr
 
 The provider remains authoritative for mailbox state. GoreeCloud Mail may persist normalized metadata, synchronization cursors, search indexes, offline cache records, and notification state. Cached message content must follow retention, encryption, account-isolation, and deletion rules before production use.
 
+The development in-memory provider-account registry and OAuth-state store are not approved production persistence mechanisms. Production storage must preserve user/account isolation and separate reusable provider credentials from ordinary application records.
+
 ## Acceptance requirements
 
 Real-provider connectivity is not production-ready until tests prove at minimum:
@@ -81,4 +99,6 @@ Real-provider connectivity is not production-ready until tests prove at minimum:
 4. provider errors are normalized without leaking credentials or sensitive protocol details;
 5. HTML and remote-content controls remain enforced on real provider data;
 6. account revocation removes or invalidates reusable provider authorization state;
-7. synchronization can resume safely without duplicating destructive operations.
+7. synchronization can resume safely without duplicating destructive operations;
+8. provider-account API routing cannot override session-derived user ownership;
+9. Gmail provider payloads are normalized without inventing missing data or passing unsafe provider content directly into shared rendering paths.
