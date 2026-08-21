@@ -21,10 +21,11 @@ function buildGmailAccountService(calls) {
         error.status = 404;
         throw error;
       }
+      const bytes = Buffer.from('%PDF-x\n', 'ascii');
       return {
         attachmentId: args.attachmentId,
-        size: 8,
-        bytes: Buffer.from('%PDF-x\n', 'ascii'),
+        size: bytes.length,
+        bytes,
       };
     },
   };
@@ -50,7 +51,7 @@ test('retrieval binds stored attachment to authenticated user and account', asyn
     assert.equal(result.accountId, 'account-a');
     assert.equal(result.messageId, 'message-1');
     assert.equal(result.attachmentId, 'attachment-1');
-    assert.equal(result.size, 8);
+    assert.equal(result.size, 7);
     assert.equal(result.sniffedMimeType, 'application/pdf');
     assert.ok(!('path' in result));
     assert.ok(!('userId' in result));
