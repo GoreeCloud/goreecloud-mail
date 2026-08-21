@@ -44,10 +44,40 @@ test('fails with auth-required when no refresh token exists', async () => {
   );
 });
 
-test('revocation removes reusable provider authorization state', async () => {
+test('revocation calls Google with the refresh token before removing local authorization state', async () => {
+  const vault = new InMemoryCredentialVault();
+  vault.put({ userId, accountId, provider: 'gmail', secret: { accessToken: 'access-token', refreshToken: 'refresh-token' } });
+  let request;
+  const service = new GmailTokenService({
+    credentialVault: vault,
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return { ok: true };
+    },
+  });
+
+  assert.deepEqual(await service.revoke({ userId, accountId }), { revoked: true });
+  assert.match(request.url, /oauth2\.googleapis\.com\/revoke/);
+  assert.equal(new URLSearchParams(String(request.options.body)).get('token'), 'refresh-token');
+  assert.throws(() => vault.get({ userId, accountId }), CredentialNotFoundError);
+});
+
+test('failed upstream revocation retains local authorization state for safe retry', async () => {
+  const vault = new InMemoryCredentialVault();
+  vault.put({ userId, accountId, provider: 'gmail', secret: { refreshToken: 'refresh-token' } });
+  const service = new GmailTokenService({
+    credentialVault: vault,
+    fetchImpl: async () => ({ ok: false, status: 503 }),
+  });
+
+  await assert.rejects(service.revoke({ userId, accountId }), (error) => error.retryable === true);
+  assert.equal(vault.get({ userId, accountId }).refreshToken, 'refresh-token');
+});
+
+test('local-only revocation is available for already-invalid upstream credentials', async () => {
   const vault = new InMemoryCredentialVault();
   vault.put({ userId, accountId, provider: 'gmail', secret: { refreshToken: 'refresh-token' } });
   const service = new GmailTokenService({ credentialVault: vault, fetchImpl: async () => { throw new Error('unexpected'); } });
-  assert.deepEqual(await service.revoke({ userId, accountId }), { revoked: true });
+  assert.deepEqual(await service.revoke({ userId, accountId, revokeUpstream: false }), { revoked: true });
   assert.throws(() => vault.get({ userId, accountId }), CredentialNotFoundError);
 });
