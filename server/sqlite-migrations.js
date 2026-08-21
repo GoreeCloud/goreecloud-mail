@@ -1,12 +1,18 @@
 import { readFileSync } from 'node:fs';
 
 const BASELINE_SCHEMA = readFileSync(new URL('../docs/persistence-schema.sql', import.meta.url), 'utf8');
+const ATTACHMENT_DELIVERY_SCHEMA = readFileSync(new URL('../docs/migrations/002-attachment-delivery.sql', import.meta.url), 'utf8');
 
 export const SQLITE_MIGRATIONS = Object.freeze([
   Object.freeze({
     version: 1,
     name: 'baseline-mail-state',
     sql: BASELINE_SCHEMA,
+  }),
+  Object.freeze({
+    version: 2,
+    name: 'attachment-delivery-metadata',
+    sql: ATTACHMENT_DELIVERY_SCHEMA,
   }),
 ]);
 
@@ -24,8 +30,8 @@ function ensureMigrationTable(db) {
  * Apply repository-owned SQLite migrations exactly once and in ascending order.
  *
  * Migrations execute inside BEGIN IMMEDIATE transactions so a failed migration
- * cannot be recorded as applied. The current baseline migration intentionally
- * uses idempotent CREATE statements so databases created before this migration
+ * cannot be recorded as applied. The baseline migration intentionally uses
+ * idempotent CREATE statements so databases created before this migration
  * framework can be adopted without destructive schema recreation.
  */
 export function applySqliteMigrations(db, { now = () => new Date().toISOString() } = {}) {
