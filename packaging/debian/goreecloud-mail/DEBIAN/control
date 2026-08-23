@@ -1,0 +1,11 @@
+Package: goreecloud-mail
+Version: 0.1.0
+Section: mail
+Priority: optional
+Architecture: amd64
+Maintainer: GoreeCloud
+Description: Privacy-first GoreeCloud Mail client
+ First-party GoreeCloud email client with Glaze UI,
+ provider-independent mail access, Wardveil Security,
+ and Privacy Shield protections.
+Depends: ca-certificates
