@@ -1,0 +1,50 @@
+name: Release Artifacts
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  web-build:
+    name: Build Web Artifact
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare web artifact placeholder
+        run: |
+          mkdir -p artifacts/web
+          printf '%s\n' 'GoreeCloud Mail web build output' > artifacts/web/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: goreecloud-mail-web
+          path: artifacts/web
+
+  deb-build:
+    name: Build Debian Package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Debian artifact directory
+        run: |
+          mkdir -p artifacts/deb
+          printf '%s\n' 'Debian package build target' > artifacts/deb/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: goreecloud-mail-deb
+          path: artifacts/deb
+
+  android-build:
+    name: Build Android Artifact
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Android artifact directory
+        run: |
+          mkdir -p artifacts/android
+          printf '%s\n' 'Android APK build target' > artifacts/android/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: goreecloud-mail-android
+          path: artifacts/android
