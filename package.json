@@ -7,7 +7,8 @@
   "scripts": {
     "test": "node --test",
     "test:backend": "node --test tests/*.test.js",
-    "serve": "python3 -m http.server 8080 --directory web"
+    "serve": "python3 -m http.server 8080 --directory web",
+    "build:web": "mkdir -p dist/web && cp -r web/* dist/web/"
   },
   "engines": {
     "node": ">=22"
