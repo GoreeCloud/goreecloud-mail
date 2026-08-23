@@ -1,0 +1,40 @@
+name: Release Packages
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  web:
+    name: Build Web Application
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build web client
+        run: |
+          echo "Web build pipeline placeholder"
+          echo "Production build command will run here once frontend bundling is finalized"
+
+  debian:
+    name: Build Debian Package
+    runs-on: ubuntu-latest
+    needs: web
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Debian package build
+        run: |
+          echo "Debian packaging pipeline initialized"
+          echo "Native GoreeCloud Mail desktop packaging will be produced here"
+
+  android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    needs: web
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Android build
+        run: |
+          echo "Android APK pipeline initialized"
+          echo "Native Android client build will be produced here"
