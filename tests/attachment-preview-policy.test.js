@@ -1,4 +1,4 @@
-import test from 'node:internal/test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { classifyAttachmentPreview } from '../server/attachment-preview-policy.js';

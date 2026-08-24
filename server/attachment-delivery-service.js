@@ -56,6 +56,7 @@ export class AttachmentDeliveryService {
     const createdAt = new Date(now).toISOString();
     const expiresAt = ttlMs === null ? null : new Date(now + ttlMs).toISOString();
     const record = Object.freeze({
+      objectId: stored.objectId,
       userId,
       accountId: String(accountId),
       messageId: String(messageId),
@@ -161,7 +162,7 @@ export class AttachmentDeliveryService {
 function publicRecord(record) {
   if (record.stored) {
     return Object.freeze({
-      objectId: record.stored.objectId,
+      objectId: record.objectId,
       accountId: record.accountId,
       messageId: record.messageId,
       attachmentId: record.attachmentId,
