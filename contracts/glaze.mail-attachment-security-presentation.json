@@ -1,0 +1,39 @@
+{
+  "schema": "glaze.mail-attachment-security-presentation/v1",
+  "application": "GoreeCloud Mail",
+  "securityAuthority": "Wardveil Security",
+  "states": {
+    "scan-clear": {
+      "canOpen": true,
+      "canDownload": true,
+      "headline": "Scan clear",
+      "detail": "Wardveil found no known threat in the current scan evidence."
+    },
+    "held-for-review": {
+      "canOpen": false,
+      "canDownload": false,
+      "headline": "Held for review",
+      "detail": "Wardveil flagged this attachment for additional review."
+    },
+    "blocked-by-security": {
+      "canOpen": false,
+      "canDownload": false,
+      "headline": "Blocked by security",
+      "detail": "Wardveil identified evidence that requires this attachment to remain blocked."
+    },
+    "verification-unavailable": {
+      "canOpen": false,
+      "canDownload": false,
+      "headline": "Verification unavailable",
+      "detail": "Current authoritative scan evidence is not available for this attachment."
+    }
+  },
+  "rules": {
+    "absoluteSafetyClaimsAllowed": false,
+    "clearRequiresCurrentCleanEvidence": true,
+    "clearRequiresEvidenceReferences": true,
+    "unknownOrInvalidEvidenceFailsClosed": true,
+    "maliciousEvidenceNeverPresentsAsClear": true
+  },
+  "productionUiAccepted": false
+}
