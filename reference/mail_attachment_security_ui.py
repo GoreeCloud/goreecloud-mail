@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from mail_attachment_security import AttachmentSecurityDecision
+from reference.mail_attachment_security import AttachmentSecurityDecision
 
 
 @dataclass(frozen=True)
