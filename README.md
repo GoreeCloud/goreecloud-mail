@@ -51,6 +51,16 @@ Injected synthetic Gmail responses continue to prove security, isolation, lifecy
 
 The UI uses Glaze UI, security-sensitive experiences use Wardveil Security, and privacy protections align with GoreeCloud Privacy Shield.
 
+## Wardveil attachment scanning
+
+GoreeCloud Mail now carries the reviewed Wardveil attachment-security consumer contract and an executable fail-closed presentation mapper for the browser client. Mail does not connect directly to ClamAV and does not reinterpret raw scanner output as a security verdict. Open and download actions are enabled only when the authoritative Wardveil decision records a current clean result, the content digest matches, the decision permits both actions, quarantine is not required, and evidence references are present.
+
+Unknown, expired, malformed, incomplete, suspicious, or malicious evidence remains non-actionable in the Mail client. A malicious decision requests the authorized quarantine workflow; Mail itself does not directly execute quarantine, and quarantine is not deletion. The UI deliberately reports that no known threat was found in current evidence rather than making an absolute claim that an attachment is safe.
+
+The Privacy Shield boundary excludes raw attachment content, provider credentials, and provider tokens from shared security evidence. Everkeep integration remains responsible for preserving the appropriate recoverable records and continuity semantics without converting quarantine into destructive deletion. Glaze UI governs the four reviewed attachment-security presentation states while Wardveil Security remains the security authority.
+
+The source contracts and reference implementations are development evidence only. Production deployment is not approved, and production UI/security acceptance remains false until the exact application build, Wardveil runtime, target environment, accessibility behavior, and operational quarantine executor are independently accepted.
+
 ## Planned integrations
 
 - GoreeCloud Contacts
