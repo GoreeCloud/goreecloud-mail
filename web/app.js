@@ -1,5 +1,6 @@
 import { validateMailProvider } from './mail-provider.js';
 import { DemoMailProvider } from './providers/demo-provider.js';
+import { presentAttachmentSecurity } from './security/attachment-security-presentation.js';
 
 const provider = validateMailProvider(new DemoMailProvider());
 
@@ -18,6 +19,8 @@ const readerAddress = document.querySelector('#readerAddress');
 const readerDate = document.querySelector('#readerDate');
 const readerBody = document.querySelector('#readerBody');
 const readerAvatar = document.querySelector('#readerAvatar');
+const readerAttachments = document.querySelector('#readerAttachments');
+const readerAttachmentStatus = document.querySelector('#readerAttachmentStatus');
 const flagButton = document.querySelector('#flagButton');
 
 let messages = [];
@@ -30,6 +33,13 @@ function formatDate(value) {
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+function formatBytes(value) {
+  const bytes = Number.isFinite(value) && value >= 0 ? value : 0;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function renderMailboxes(mailboxes) {
@@ -97,6 +107,76 @@ function renderMessages(items) {
   );
 }
 
+function renderAttachments(attachments = []) {
+  readerAttachmentStatus.textContent = '';
+  if (!Array.isArray(attachments) || attachments.length === 0) {
+    readerAttachments.hidden = true;
+    readerAttachments.replaceChildren();
+    return;
+  }
+
+  readerAttachments.hidden = false;
+  readerAttachments.replaceChildren(
+    ...attachments.map((attachment) => {
+      const presentation = presentAttachmentSecurity(attachment.securityDecision);
+      const card = document.createElement('article');
+      card.className = `attachment-card attachment-${presentation.state}`;
+
+      const heading = document.createElement('div');
+      heading.className = 'attachment-heading';
+      const filename = document.createElement('strong');
+      filename.textContent = attachment.filename || 'Unnamed attachment';
+      const size = document.createElement('span');
+      size.textContent = formatBytes(attachment.size);
+      heading.append(filename, size);
+
+      const security = document.createElement('div');
+      security.className = 'attachment-security-state';
+      const stateHeadline = document.createElement('strong');
+      stateHeadline.textContent = presentation.headline;
+      const stateDetail = document.createElement('span');
+      stateDetail.textContent = presentation.detail;
+      security.append(stateHeadline, stateDetail);
+
+      const actions = document.createElement('div');
+      actions.className = 'attachment-actions';
+      for (const [action, allowed] of [
+        ['open', presentation.canOpen],
+        ['download', presentation.canDownload],
+      ]) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.attachmentAction = action;
+        button.dataset.attachmentId = attachment.id || '';
+        button.disabled = !allowed;
+        button.textContent = action === 'open' ? 'Open' : 'Download';
+        if (!allowed) {
+          button.title = presentation.headline;
+        }
+        actions.append(button);
+      }
+
+      if (presentation.showEvidence) {
+        const evidence = document.createElement('details');
+        evidence.className = 'attachment-evidence';
+        const summary = document.createElement('summary');
+        summary.textContent = 'Security evidence';
+        const list = document.createElement('ul');
+        for (const reference of presentation.evidenceRefs) {
+          const item = document.createElement('li');
+          item.textContent = reference;
+          list.append(item);
+        }
+        evidence.append(summary, list);
+        card.append(heading, security, actions, evidence);
+      } else {
+        card.append(heading, security, actions);
+      }
+      return card;
+    }),
+  );
+}
+
 async function openMessage(id) {
   const message = await provider.getMessage(id);
   if (!message) return;
@@ -113,6 +193,7 @@ async function openMessage(id) {
   readerAvatar.textContent = message.sender.slice(0, 1).toUpperCase();
   flagButton.textContent = message.flagged ? '★' : '☆';
   flagButton.setAttribute('aria-pressed', String(message.flagged));
+  renderAttachments(message.attachments);
   renderMessages(messages);
 }
 
@@ -131,6 +212,13 @@ messageList.addEventListener('click', async (event) => {
   const card = event.target.closest('[data-message-id]');
   if (!card) return;
   await openMessage(card.dataset.messageId);
+});
+
+readerAttachments.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-attachment-action]');
+  if (!button || button.disabled) return;
+  const actionLabel = button.dataset.attachmentAction === 'open' ? 'Open' : 'Download';
+  readerAttachmentStatus.textContent = `${actionLabel} is security-authorized for this demo evidence, but attachment transport is not connected in the development shell.`;
 });
 
 searchInput.addEventListener('input', async () => {

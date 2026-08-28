@@ -11,6 +11,7 @@ const demoMessages = [
     receivedAt: '2026-08-20T21:30:00-05:00',
     unread: true,
     flagged: false,
+    attachments: [],
   },
   {
     id: 'security-1',
@@ -22,6 +23,34 @@ const demoMessages = [
     receivedAt: '2026-08-20T21:20:00-05:00',
     unread: false,
     flagged: true,
+    attachments: [
+      {
+        id: 'demo-clean',
+        filename: 'security-summary.pdf',
+        size: 184320,
+        securityDecision: {
+          disposition: 'allow',
+          can_open: true,
+          can_download: true,
+          quarantine_required: false,
+          evidence_refs: ['wardveil:demo:security-summary'],
+          reason_codes: ['wardveil_scan_clean_current'],
+        },
+      },
+      {
+        id: 'demo-review',
+        filename: 'unverified-archive.zip',
+        size: 92160,
+        securityDecision: {
+          disposition: 'hold_review',
+          can_open: false,
+          can_download: false,
+          quarantine_required: false,
+          evidence_refs: ['wardveil:demo:review-required'],
+          reason_codes: ['wardveil_scan_suspicious_current'],
+        },
+      },
+    ],
   },
 ];
 
