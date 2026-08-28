@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>GoreeCloud Mail</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Mailboxes">
+        <div class="brand-row">
+          <div class="brand-mark" aria-hidden="true">G</div>
+          <div>
+            <strong>GoreeCloud Mail</strong>
+            <span>Development foundation</span>
+          </div>
+        </div>
+
+        <button class="compose-button" type="button" id="composeButton">Compose</button>
+        <nav id="mailboxList" class="mailbox-list" aria-label="Mailbox list"></nav>
+
+        <div class="sidebar-footer">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="providerStatus">Demo provider</span>
+        </div>
+      </aside>
+
+      <main class="message-column">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Inbox</p>
+            <h1>Mail</h1>
+          </div>
+          <label class="search-field">
+            <span class="sr-only">Search messages</span>
+            <input id="searchInput" type="search" placeholder="Search mail" autocomplete="off" />
+          </label>
+        </header>
+
+        <section class="privacy-banner" aria-label="Privacy status">
+          <strong>Privacy Shield</strong>
+          <span>Remote content is blocked in this development foundation.</span>
+        </section>
+
+        <section id="messageList" class="message-list" aria-label="Messages"></section>
+      </main>
+
+      <section class="reader" aria-live="polite" aria-label="Selected message">
+        <div id="emptyReader" class="empty-reader">
+          <div class="empty-icon" aria-hidden="true">✉</div>
+          <h2>Select a message</h2>
+          <p>Open a conversation to read it here.</p>
+        </div>
+
+        <article id="messageReader" class="message-reader" hidden>
+          <header class="reader-header">
+            <div>
+              <p class="eyebrow">Message</p>
+              <h2 id="readerSubject"></h2>
+            </div>
+            <button id="flagButton" type="button" class="icon-button" aria-pressed="false">☆</button>
+          </header>
+
+          <div class="sender-row">
+            <div class="avatar" id="readerAvatar" aria-hidden="true"></div>
+            <div>
+              <strong id="readerSender"></strong>
+              <span id="readerAddress"></span>
+            </div>
+            <time id="readerDate"></time>
+          </div>
+
+          <div class="security-card">
+            <strong>Wardveil Security</strong>
+            <span>No external content loaded. Attachments and links are treated as untrusted.</span>
+          </div>
+
+          <div id="readerBody" class="reader-body"></div>
+        </article>
+      </section>
+    </div>
+
+    <dialog id="composeDialog" class="compose-dialog">
+      <form method="dialog" id="composeForm">
+        <header>
+          <div>
+            <p class="eyebrow">New message</p>
+            <h2>Compose</h2>
+          </div>
+          <button value="cancel" class="icon-button" aria-label="Close composer">×</button>
+        </header>
+
+        <label>
+          <span>To</span>
+          <input name="to" type="email" required placeholder="recipient@example.com" />
+        </label>
+        <label>
+          <span>Subject</span>
+          <input name="subject" required />
+        </label>
+        <label>
+          <span>Message</span>
+          <textarea name="body" rows="10" required></textarea>
+        </label>
+
+        <footer>
+          <span id="composeStatus" role="status"></span>
+          <button value="send" class="send-button" type="submit">Send demo message</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

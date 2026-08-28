@@ -1,0 +1,171 @@
+# Trusted Provider Backend Contract
+
+## Purpose
+
+GoreeCloud Mail uses a trusted backend boundary between user-facing clients and external mail providers. Browser clients never receive reusable Gmail refresh tokens, IMAP passwords, SMTP passwords, application passwords, or provider client secrets.
+
+## Session boundary
+
+Every `/api/mail` request must be associated with an authenticated GoreeCloud Mail session. The backend derives the GoreeCloud user identity from that session; callers do not choose an arbitrary user identifier in a request body, query string, or provider path.
+
+Provider-account records are scoped to the authenticated GoreeCloud user. A provider account identifier is an opaque GoreeCloud identifier and must not grant access when presented by a different user.
+
+## Provider-account API boundary
+
+Provider-account operations are routed through a trusted service that derives ownership from the authenticated session. The development router currently exposes normalized account operations under `/api/mail/accounts` for listing, creating, retrieving, and removing provider-account records.
+
+Cross-user references fail closed with the same not-found state used for absent records. Public provider-account representations do not expose the internal GoreeCloud owning-user identifier.
+
+The current router and account registry are development foundations only. Production deployment requires approved persistent storage, request parsing and body limits, CSRF/session protections appropriate to the chosen web framework, rate limiting where required, and integration with the production authentication boundary.
+
+## Authorization state
+
+Provider authorization state belongs in trusted server-side storage.
+
+For Gmail, the intended flow is authorization code with PKCE. The backend creates short-lived authorization state, validates the callback state and redirect target, exchanges the authorization code with Google, and stores reusable provider credentials only in approved secret storage.
+
+The current Gmail OAuth source can generate PKCE S256 verifier/challenge pairs, construct the Google authorization request, and construct an authorization-code token-exchange request body. It does not perform a real authorization-code exchange and contains no production OAuth secret or provider token.
+
+For standards-based accounts, the backend owns IMAP/SMTP OAuth credentials or, only where necessary, application passwords or mailbox passwords. Those values are never returned by provider-account APIs after enrollment.
+
+## Credential-vault boundary
+
+Reusable provider credentials are separate from provider-account metadata. The credential vault is addressed only with both the authenticated GoreeCloud user scope and the opaque GoreeCloud provider-account identifier.
+
+The development in-memory credential vault proves these semantics:
+
+- secrets are scoped by both user and account;
+- reads return isolated copies rather than mutable internal references;
+- public credential descriptors expose configuration state but not token or password values;
+- cross-user secret lookups fail as not found;
+- removal invalidates subsequent reads.
+
+The in-memory vault is not approved for production. Production must use an approved encrypted secret store with explicit access controls, lifecycle and revocation behavior, backup/recovery decisions, auditing appropriate to sensitive material, and no routine secret disclosure through logs or client responses.
+
+## Gmail token lifecycle
+
+The trusted backend includes a Gmail token lifecycle service. It reuses an access token only while it remains valid beyond a safety skew, refreshes expired access tokens using the stored refresh credential, preserves the existing refresh token when Google does not return a replacement, updates expiration metadata, and normalizes refresh failures before they reach higher layers.
+
+Revocation can attempt upstream Google token revocation before local credential removal. The refresh token is preferred for revocation when present, with the access token used only as a fallback. If upstream revocation fails, local credential state is retained so the operation can be retried deliberately rather than silently reporting success. A local-only revocation path remains available for already-invalid or administratively cleared provider credentials.
+
+The token lifecycle service never accepts a browser-supplied bearer token as authorization for mailbox operations.
+
+## Normalized provider operations
+
+The backend exposes provider-independent operations under `/api/mail/providers/{provider}`. Implementations normalize provider-specific data into GoreeCloud Mail mailbox, message, draft, attachment, and capability models.
+
+Supported logical operations remain:
+
+- authenticate
+- listMailboxes
+- listMessages
+- getMessage
+- search
+- send
+- createDraft
+- updateDraft
+- move
+- archive
+- remove
+- flag
+- sync
+- capabilities
+
+Unsupported capabilities must be explicit rather than inferred from errors.
+
+## Gmail normalization foundation
+
+Gmail-native message and label records must be normalized before they enter shared client logic. The development normalizer currently maps synthetic Gmail message metadata into provider-independent identifiers, thread identifiers, subject, sender, recipients, date, snippet, unread/starred state, labels, estimated size, and attachment-presence fields.
+
+Missing provider values remain absent or null rather than being invented. Message bodies, HTML, MIME parts, attachment downloads, and synchronization history remain separate future normalization boundaries and must be handled as untrusted provider input.
+
+## Gmail transport boundary
+
+The trusted backend includes a Gmail API client foundation that accepts a server-side token resolver rather than a raw browser-provided token. The client can list labels, list message references, and retrieve a full message through the Gmail API contract while normalizing provider errors before they cross the backend boundary.
+
+Bearer authorization is attached only inside the trusted transport request. Access tokens are not included in normalized labels, message references, normalized messages, or public error bodies.
+
+A Gmail account service sits in front of transport operations. It derives the user from trusted session state, resolves the opaque provider account through the user-scoped account service, verifies that the account is a Gmail account, and only then creates or invokes Gmail transport. Cross-user account references therefore fail before a Gmail API client is used.
+
+Provider requests run through a bounded transport policy. Each attempt has a timeout, retry count is finite, exponential backoff is capped, Retry-After hints are capped before use, and authentication failures are not retried. Retryable failures include rate limits and selected temporary upstream failures. Timeout failures become bounded retryable temporary-provider errors rather than exposing low-level transport details.
+
+The current transport is still a development foundation. Tests use injected synthetic responses; no real Google account, token, or mailbox has been connected. Production use additionally requires production observability without secret leakage and approved durable persistence/secret storage.
+
+## Synchronization-state boundary
+
+Synchronization cursors and mailbox synchronization status are account-scoped application state, not provider credentials. The development synchronization-state store mirrors the durable schema semantics while remaining dependency-free for tests.
+
+Cursor records are scoped by GoreeCloud user, provider account, and cursor type. Mailbox state is scoped by GoreeCloud user, provider account, and mailbox identifier. Public records omit the owning user identifier. Failed attempts preserve the last successful synchronization time, while a later successful synchronization clears stale error state.
+
+Production synchronization persistence must provide transactional updates, durable recovery, account-isolated lookups, cursor monotonicity rules where provider semantics require them, and idempotent replay behavior for queued operations.
+
+## Operation-idempotency boundary
+
+Potentially repeated or destructive backend operations require a stable idempotency boundary before production synchronization and offline replay are enabled. The development idempotency store scopes records by GoreeCloud user, provider account, normalized operation, and idempotency key.
+
+The same key may be reused only when the request fingerprint matches the original operation. Reuse with incompatible input fails with a conflict. Completed results are copied before exposure, failed operations store only bounded error codes, and cross-user lookups fail closed.
+
+`docs/persistence-schema.sql` includes a durable `operation_idempotency` record blueprint. Production implementation must make begin/commit/fail transitions transactional with the state mutation they protect, define expiration and garbage-collection policy, and avoid persisting private message bodies or secret material inside idempotency results.
+
+## Account isolation
+
+All account, mailbox, message, attachment, draft, synchronization, idempotency, and credential lookups must include the authenticated GoreeCloud user scope. Provider-native identifiers are not globally trusted identifiers.
+
+Cross-account and cross-user object references fail closed. The backend must not reveal whether an inaccessible object exists for another user.
+
+## Logging and observability
+
+Routine logs may contain request correlation identifiers, provider type, normalized operation name, coarse outcome, duration, and safe error classification.
+
+Routine logs must not contain:
+
+- access or refresh tokens
+- passwords or application passwords
+- authorization codes
+- session cookies
+- complete message bodies
+- attachment contents
+- unnecessary recipient lists or subject text
+
+Provider errors are translated to bounded GoreeCloud Mail errors before reaching clients.
+
+## Message-content boundary
+
+Provider responses and message content remain untrusted even after successful provider authentication. The message-content policy now defines a fail-closed rendering boundary: plain text is HTML-escaped and HTML is refused unless an approved sanitizer implementation is explicitly injected.
+
+Defense-in-depth checks reject obviously active markup, event-handler attributes, and active URL schemes both before and after sanitizer execution. These checks are intentionally not represented as a standalone sanitizer. Production HTML rendering remains blocked until a maintained, independently tested sanitizer is integrated and configured with a restrictive allowlist.
+
+Sanitized HTML still has remote content disabled by default. Privacy Shield controls remain responsible for deliberate remote-resource loading. Attachments remain inert data until explicitly opened or downloaded through an approved path.
+
+## Persistence direction
+
+The provider remains authoritative for mailbox state. GoreeCloud Mail may persist normalized metadata, synchronization cursors, search indexes, offline cache records, and notification state. Cached message content must follow retention, encryption, account-isolation, and deletion rules before production use.
+
+`docs/persistence-schema.sql` is the current durable-state blueprint. It separates provider-account metadata, credential references, OAuth state, synchronization cursors, mailbox cache state, and operation-idempotency state. Reusable secret values are deliberately absent from ordinary application tables; only a vault reference may be persisted there.
+
+The development in-memory provider-account registry, OAuth-state store, credential vault, synchronization-state store, and idempotency store are not approved production persistence mechanisms. Production storage must preserve user/account isolation, enforce referential integrity, and separate reusable provider credentials from ordinary application records.
+
+## Acceptance requirements
+
+Real-provider connectivity is not production-ready until tests prove at minimum:
+
+1. authorization state cannot be replayed or redirected to an unapproved target;
+2. reusable credentials never appear in browser-visible responses or routine logs;
+3. one GoreeCloud user cannot address another user's provider account or cached mail objects;
+4. provider errors are normalized without leaking credentials or sensitive protocol details;
+5. HTML and remote-content controls remain enforced on real provider data;
+6. account revocation removes or invalidates reusable provider authorization state;
+7. synchronization can resume safely without duplicating destructive operations;
+8. provider-account API routing cannot override session-derived user ownership;
+9. Gmail provider payloads are normalized without inventing missing data or passing unsafe provider content directly into shared rendering paths;
+10. provider credentials remain isolated in the credential-vault boundary and cannot be retrieved by another GoreeCloud user;
+11. Gmail transport responses never return bearer tokens or raw upstream error bodies to client-facing code;
+12. Gmail transport cannot run for a provider account owned by another user or for a non-Gmail provider account;
+13. expired access tokens are refreshed server-side without exposing refresh credentials to clients;
+14. durable state stores vault references rather than reusable provider secret values;
+15. upstream provider revocation failures do not silently erase the only local retry state;
+16. provider transport applies finite timeout/retry/backoff behavior and does not retry authentication failures;
+17. synchronization cursors and mailbox state remain isolated by user and provider account;
+18. repeated operations cannot reuse an idempotency key with incompatible input;
+19. operation-idempotency transitions are transactionally coupled to protected production state changes;
+20. message HTML cannot render without the approved sanitizer and remote resources remain blocked by default.

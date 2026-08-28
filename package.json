@@ -1,0 +1,16 @@
+{
+  "name": "goreecloud-mail",
+  "version": "0.1.0-dev",
+  "private": true,
+  "description": "Privacy-first GoreeCloud email client foundation",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "test:backend": "node --test tests/*.test.js",
+    "serve": "python3 -m http.server 8080 --directory web",
+    "build:web": "mkdir -p dist/web && cp -r web/* dist/web/"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

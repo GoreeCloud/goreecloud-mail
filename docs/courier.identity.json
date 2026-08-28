@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "officialName": "GoreeCloud Courier",
+  "shortName": "Courier",
+  "status": "approved-active-development",
+  "type": "product-capability-identity",
+  "application": "GoreeCloud Mail",
+  "repository": "GoreeCloud/goreecloud-mail",
+  "role": "Unified first-party mail technology and feature framework powering GoreeCloud Mail",
+  "standaloneApplication": false,
+  "emailServer": false,
+  "providerIndependent": true,
+  "designLanguage": "Glaze UI",
+  "securityIdentity": "Wardveil Security by GoreeCloud",
+  "privacyIdentity": "GoreeCloud Privacy Shield",
+  "capabilityFamilies": [
+    "Courier Inbox",
+    "Courier Compose",
+    "Courier Sync",
+    "Courier Search",
+    "Courier Rules",
+    "Courier Attachments",
+    "Courier Accounts"
+  ],
+  "sourceControlMirror": "docs/courier.md"
+}
