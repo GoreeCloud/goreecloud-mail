@@ -78,6 +78,22 @@ export class DemoMailProvider {
     return structuredClone(demoMessages.find((message) => message.id === id) ?? null);
   }
 
+  async retrieveAttachment(messageId, attachmentId, action) {
+    const message = demoMessages.find((candidate) => candidate.id === messageId);
+    const attachment = message?.attachments?.find((candidate) => candidate.id === attachmentId);
+    if (!attachment) {
+      throw new Error('Demo attachment not found.');
+    }
+    return Object.freeze({
+      source: 'demo-local-fixture',
+      messageId,
+      attachmentId,
+      action,
+      filename: attachment.filename,
+      executable: false,
+    });
+  }
+
   async search(query) {
     const normalizedQuery = query.trim().toLowerCase();
     return structuredClone(
@@ -124,6 +140,7 @@ export class DemoMailProvider {
   async capabilities() {
     return normalizeCapabilities({
       archive: true,
+      attachments: true,
       drafts: true,
       flags: true,
       folders: true,
