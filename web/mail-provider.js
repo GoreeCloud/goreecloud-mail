@@ -3,6 +3,7 @@ export const REQUIRED_MAIL_PROVIDER_METHODS = Object.freeze([
   'listMailboxes',
   'listMessages',
   'getMessage',
+  'retrieveAttachment',
   'search',
   'send',
   'createDraft',
@@ -34,6 +35,7 @@ export function validateMailProvider(provider) {
 export function normalizeCapabilities(capabilities = {}) {
   return Object.freeze({
     archive: Boolean(capabilities.archive),
+    attachments: Boolean(capabilities.attachments),
     drafts: Boolean(capabilities.drafts),
     flags: Boolean(capabilities.flags),
     folders: Boolean(capabilities.folders),
