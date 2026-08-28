@@ -1,0 +1,52 @@
+name: Validate GoreeCloud Mail
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: goreecloud-mail-validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out exact source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Verify exact source revision
+        env:
+          EXPECTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Test Wardveil attachment security consumer
+        run: python3 scripts/test_mail_attachment_security.py
+
+      - name: Validate Wardveil Mail integration contract
+        run: python3 scripts/validate_wardveil_mail_integration.py
+
+      - name: Test Glaze attachment security presentation
+        run: python3 scripts/test_mail_attachment_security_ui.py
+
+      - name: Validate Glaze attachment security presentation contract
+        run: python3 scripts/validate_glaze_mail_attachment_security.py
+
+      - name: Compile Mail security tooling
+        run: >-
+          python3 -m py_compile
+          reference/mail_attachment_security.py
+          reference/mail_attachment_security_ui.py
+          scripts/test_mail_attachment_security.py
+          scripts/test_mail_attachment_security_ui.py
+          scripts/validate_wardveil_mail_integration.py
+          scripts/validate_glaze_mail_attachment_security.py
