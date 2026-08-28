@@ -31,6 +31,13 @@ export class GatewayMailProvider {
     return this.gateway.request(this.path(`/messages/${encodeURIComponent(id)}`));
   }
 
+  retrieveAttachment(messageId, attachmentId, action) {
+    return this.gateway.request(
+      this.path(`/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}/transport`),
+      { method: 'POST', body: { action } },
+    );
+  }
+
   search(query) {
     return this.gateway.request(this.path(`/search?q=${encodeURIComponent(query)}`));
   }
