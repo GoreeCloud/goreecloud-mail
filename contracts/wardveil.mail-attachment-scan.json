@@ -1,7 +1,7 @@
 {
-  "contract_version": "0.2.0",
+  "contract_version": "0.3.0",
   "consumer": "GoreeCloud Mail",
-  "integration": "Wardveil Scan attachment consumer",
+  "integration": "Wardveil Scan attachment consumer and delivery enforcement",
   "wardveil_runtime_contract_version": "0.1.0",
   "resource_type": "mail_attachment",
   "direct_clamav_access_allowed": false,
@@ -38,12 +38,30 @@
     "production_service_identity_accepted": false,
     "distributed_replay_protection_accepted": false
   },
+  "delivery_enforcement": {
+    "wardveil_scan_client_required": true,
+    "provider_bytes_scanned_before_downloadable_storage": true,
+    "scan_action": "download",
+    "only_current_clean_result_may_create_downloadable_record": true,
+    "malicious_content_stored_for_download": false,
+    "suspicious_content_stored_for_download": false,
+    "unknown_content_stored_for_download": false,
+    "unsupported_content_stored_for_download": false,
+    "scanner_unavailable_fails_closed_before_storage": true,
+    "stored_sha256_must_equal_scan_digest": true,
+    "changed_during_scan_or_storage_fails_closed": true,
+    "download_rechecks_scan_validity": true,
+    "download_rechecks_stored_digest_binding": true,
+    "process_restart_without_current_scan_provenance_fails_closed": true,
+    "durable_scan_provenance_persisted": false,
+    "automatic_rescan_after_restart_implemented": false
+  },
   "result_mapping": {
     "clean": "allow_only_when_all_validation_passes",
-    "suspicious": "hold_for_review",
-    "malicious": "block_and_request_quarantine",
-    "unknown": "block_unverified",
-    "unsupported": "block_unverified"
+    "suspicious": "hold_for_review_without_downloadable_cache",
+    "malicious": "block_and_request_quarantine_without_downloadable_cache",
+    "unknown": "block_unverified_without_downloadable_cache",
+    "unsupported": "block_unverified_without_downloadable_cache"
   },
   "malicious_digest_match_remains_blocking_after_evidence_expiry": true,
   "quarantine": {

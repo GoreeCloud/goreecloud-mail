@@ -78,19 +78,38 @@ Mail must not copy raw attachment bytes, provider credentials, OAuth tokens, app
 
 Gmail, IMAP, SMTP, or another provider remains responsible for provider-side message storage and transport state. A Wardveil decision controls GoreeCloud Mail behavior; it does not claim to have deleted or quarantined a provider-side object unless an explicitly authorized provider integration supplies corresponding evidence.
 
+## Attachment-delivery enforcement
+
+`server/attachment-delivery-service.js` now makes Wardveil Scan part of the actual trusted attachment-delivery path rather than treating scan evidence as a detached reference decision.
+
+The service requires a Wardveil Scan client at construction time. After provider-account ownership is verified and provider bytes are retrieved, the exact bytes are submitted to Wardveil with lifecycle action `download` before a downloadable cache object is committed. The service independently verifies the Wardveil record contract, authority, scope, resource identity, SHA-256 digest, result, evidence references, observation time, and validity window before allowing storage.
+
+Only a current clean result may continue to downloadable storage. Suspicious, malicious, unknown, unsupported, invalid, expired, or scanner-unavailable outcomes fail closed before a downloadable object is committed. A malicious result exposes only a bounded non-destructive quarantine-required decision; Mail still does not execute quarantine directly.
+
+After storage, Mail compares the stored SHA-256 digest with both the provider-byte digest and the digest bound to the accepted Wardveil Scan evidence. A mismatch is treated as content changed during scan or storage, the newly stored object is removed, and no delivery record is accepted.
+
+Download authorization rechecks that the remembered scan result is clean, that the scan validity window remains current, and that the stored metadata digest still matches the scan digest. Expired clean evidence cannot continue authorizing download.
+
+Current scan provenance is intentionally process-local in this source increment. Durable attachment-delivery metadata may survive a process restart, but if the current Wardveil scan provenance is no longer present, download authorization fails closed with missing scan provenance instead of treating the old cache as permanently clean. Durable Wardveil scan provenance or an automatic bounded re-scan path remains an explicit productionization requirement.
+
+This design means a restart can temporarily make a previously clean cached attachment unavailable. That is preferable to reusing security evidence whose current validity can no longer be established.
+
 ## Production acceptance
 
-This implementation is an executable source-level GoreeCloud Mail consumer of Wardveil Scan, but production runtime status remains `unaccepted`.
+This implementation is an executable source-level GoreeCloud Mail consumer of Wardveil Scan with attachment-delivery enforcement, but production runtime status remains `unaccepted`.
 
 Production acceptance still requires:
 
 - deployment of the hardened Wardveil Scan service revision on the target runtime;
-- a deployed Mail backend that executes this client against the deployed Wardveil service;
+- a deployed Mail backend that executes the real attachment-delivery service and Wardveil client against the deployed Wardveil service;
+- durable, revocable scan provenance or a bounded automatic re-scan path after service restart;
 - GoreeCloud Identity-backed service identity, short-lived credentials, rotation, and revocation acceptance replacing reference HMAC custody;
-- controlled clean, EICAR/malicious, suspicious, unsupported, timeout, scanner-unavailable, digest-mismatch, replay, revoked-credential, and stale-evidence tests;
+- controlled clean, EICAR/malicious, suspicious, unsupported, timeout, scanner-unavailable, digest-mismatch, changed-during-scan, replay, capacity-exhaustion, revoked-credential, and stale-evidence tests;
 - verified provider attachment retrieval and byte-for-byte digest binding;
+- application-side result-handling failure tests;
 - authorized Wardveil Quarantine execution evidence for supported Mail targets;
-- user-visible Glaze UI states for allowed, held, blocked, quarantined, and unavailable scanning states;
+- Audit and Security Center provenance acceptance for scan and enforcement outcomes;
+- user-visible Glaze UI states for allowed, held, blocked, quarantined, expired, and unavailable scanning states;
 - Privacy Shield validation for data minimization;
 - Everkeep integration where attachment recovery or preservation behavior applies.
 
