@@ -52,7 +52,7 @@ A missing credential or unsupported provider still fails closed.
 
 ## Message Construction
 
-The current native message builder deliberately supports a bounded plain-text foundation rather than pretending to provide the full composer feature set.
+The current native message builder provides a bounded MIME construction foundation for plain text, sanitized rich HTML alternatives, and explicit outgoing file attachments. It is not a rich editor, attachment-scanning workflow, or provider-delivery acceptance claim.
 
 Current controls include:
 
@@ -61,14 +61,24 @@ Current controls include:
 - simple mailbox-address validation for To/Cc/Bcc and any trusted From/Reply-To value;
 - CR, LF, and NUL rejection in header values;
 - bounded subject/header sizes;
-- bounded UTF-8 body size;
+- independently bounded UTF-8 plain-text and HTML source sizes;
+- restrictive first-party HTML sanitization before MIME construction;
+- deterministic `multipart/alternative` generation for sanitized HTML plus plain-text fallback;
+- optional outgoing attachments supplied as trusted bytes or canonical base64;
+- bounded attachment count, per-file size, total attachment size, filename length, and media-type length;
+- filename path-separator and header-control rejection;
+- simple MIME media-type validation with `application/octet-stream` fallback;
+- deterministic `multipart/mixed` generation, with nested `multipart/alternative` when rich HTML is present;
+- RFC 2231-style UTF-8 filename parameters with bounded ASCII fallback values;
+- 76-character base64 transfer wrapping for attachment payloads;
 - RFC-style CRLF normalization;
 - UTF-8 encoded-word handling for non-ASCII subjects;
 - optional server-owned RFC-style `Message-ID` insertion for reconciliation-enabled send and draft writes;
-- MIME version, text/plain UTF-8 content type, and 8bit transfer encoding;
-- base64url conversion for Gmail `raw` transport.
+- MIME version and base64url conversion for Gmail `raw` transport.
 
-Rich HTML composition, attachments in outgoing messages, multipart MIME construction, signatures, inline images, templates, and advanced identity presentation remain separate implementation milestones.
+Inline images, content-ID relationships, signatures, templates, rich/CSS editor controls, and provider-confirmed attachment behavior remain separate implementation milestones.
+
+Outgoing attachment construction also does **not** bypass the Wardveil Security authority boundary. This builder only constructs MIME from bytes it is given. A production composition pipeline must separately prove how user-selected files are acquired, bounded, authorized, scanned when policy requires it, and admitted to this builder. No Wardveil scan execution is claimed by this source-level MIME milestone.
 
 ## Sender Identity Boundary
 
@@ -122,7 +132,10 @@ This milestone remains source-development work using injected/synthetic Gmail re
 - production OAuth consent/verification acceptance;
 - production credential-key custody;
 - sender-identity/send-as acceptance;
-- rich MIME or outgoing attachment support;
+- user-facing attachment selection or upload UX;
+- Wardveil Security scan execution for outgoing composition;
+- provider-confirmed MIME/attachment interoperability or size-limit acceptance;
+- inline-image/content-ID support;
 - real-provider timing/consistency acceptance for send or draft reconciliation;
 - durable offline/cross-process operation-journal acceptance;
 - production observability or rate-limit behavior;
