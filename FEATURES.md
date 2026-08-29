@@ -17,7 +17,7 @@ The target inventory below defines GoreeCloud Mail product scope. It must not be
 | Provider-independent MailProvider and same-origin provider gateway | Source-validated development foundation |
 | Account-scoped provider capability discovery/enforcement and opaque account routing | Source-validated development foundation; provider-specific production acceptance pending |
 | Gmail OAuth-scope-derived effective capability resolution | Source-validated with synthetic credential state; real-provider authorization acceptance pending |
-| Gmail read-side API plus bounded plain-text send/draft create/update transport | Source-validated with synthetic provider responses; rich MIME, sender identities, ambiguous-write reconciliation, and real-provider production acceptance pending |
+| Gmail read-side API plus bounded plain-text send/draft create/update transport | Source-validated with synthetic provider responses; one-attempt writes and deterministic ambiguous send/draft reconciliation implemented; rich MIME, sender identities, durable operation journals, real-provider reconciliation timing, and production acceptance pending |
 | IMAP/SMTP external-provider adapter foundation | Source-validated with synthetic provider data; real-provider production acceptance pending |
 | Trusted session identity and user-scoped provider accounts | Source-validated |
 | OAuth state/PKCE/token lifecycle and separate credential-vault boundaries | Source-validated; production key custody/runtime acceptance pending |
@@ -50,7 +50,7 @@ Snooze and exact snooze times; remind-me-later; automatic/manual follow-up remin
 
 ## Composing and sending — Target
 
-The source-validated Gmail foundation currently supports bounded plain-text direct send plus draft creation/update through the trusted Gmail provider path. The broader target remains: rich-text and plain-text composition; headings/emphasis/lists/indentation/links/alignment; inline images; file attachments; attachment preview/save; drag-and-drop attachments; single and multiple signatures; multiple provider-confirmed sender identities; provider-supported aliases; reply/reply-all/forward/resend; BCC and BCC-to-self; contact groups; distribution lists; reusable and shared templates; text snippets; and dynamic placeholders.
+The source-validated Gmail foundation currently supports bounded plain-text direct send plus draft creation/update through the trusted Gmail provider path, with deterministic ambiguous-write reconciliation when a stable client mutation identifier is supplied. The broader target remains: rich-text and plain-text composition; headings/emphasis/lists/indentation/links/alignment; inline images; file attachments; attachment preview/save; drag-and-drop attachments; single and multiple signatures; multiple provider-confirmed sender identities; provider-supported aliases; reply/reply-all/forward/resend; BCC and BCC-to-self; contact groups; distribution lists; reusable and shared templates; text snippets; and dynamic placeholders.
 
 ## Sending controls — Target
 

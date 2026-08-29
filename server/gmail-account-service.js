@@ -90,8 +90,26 @@ export class GmailAccountService {
       message,
       capability: MAIL_PROVIDER_CAPABILITY.DRAFTS,
     });
-    const built = buildGmailRawMessage(message);
-    return this.gmailClientFactory(context).createDraft(context, { raw: built.raw });
+    const reconciliationMessageId = deriveReconciliationMessageId({
+      accountId: context.accountId,
+      clientMutationId: message?.clientMutationId,
+    });
+    const built = buildGmailRawMessage({
+      ...message,
+      ...(reconciliationMessageId ? { messageId: reconciliationMessageId } : {}),
+    });
+    const client = this.gmailClientFactory(context);
+
+    try {
+      return await client.createDraft(context, { raw: built.raw });
+    } catch (error) {
+      if (!reconciliationMessageId || !isAmbiguousWriteFailure(error)) throw error;
+      return this.#reconcileAmbiguousDraft({
+        client,
+        context,
+        messageId: reconciliationMessageId,
+      });
+    }
   }
 
   async updateDraft({ session, accountId, draftId, message }) {
@@ -102,8 +120,27 @@ export class GmailAccountService {
       message,
       capability: MAIL_PROVIDER_CAPABILITY.DRAFTS,
     });
-    const built = buildGmailRawMessage(message);
-    return this.gmailClientFactory(context).updateDraft(context, { draftId, raw: built.raw });
+    const reconciliationMessageId = deriveReconciliationMessageId({
+      accountId: context.accountId,
+      clientMutationId: message?.clientMutationId,
+    });
+    const built = buildGmailRawMessage({
+      ...message,
+      ...(reconciliationMessageId ? { messageId: reconciliationMessageId } : {}),
+    });
+    const client = this.gmailClientFactory(context);
+
+    try {
+      return await client.updateDraft(context, { draftId, raw: built.raw });
+    } catch (error) {
+      if (!reconciliationMessageId || !isAmbiguousWriteFailure(error)) throw error;
+      return this.#reconcileAmbiguousDraft({
+        client,
+        context,
+        draftId,
+        messageId: reconciliationMessageId,
+      });
+    }
   }
 
   async #reconcileAmbiguousSend({ client, context, messageId }) {
@@ -114,6 +151,27 @@ export class GmailAccountService {
           id: matches[0].id ? String(matches[0].id) : null,
           threadId: matches[0].threadId ? String(matches[0].threadId) : null,
           labelIds: ['SENT'],
+          reconciled: true,
+        });
+      }
+    } catch {
+      // Reconciliation itself must never trigger a replay of the original write.
+    }
+
+    throw unknownWriteOutcome();
+  }
+
+  async #reconcileAmbiguousDraft({ client, context, draftId = null, messageId }) {
+    try {
+      const matches = await client.findDraftByRfcMessageId(context, { messageId });
+      if (matches.length === 1 && (!draftId || matches[0].id === String(draftId))) {
+        return Object.freeze({
+          id: matches[0].id ? String(matches[0].id) : null,
+          message: Object.freeze({
+            id: matches[0].message?.id ? String(matches[0].message.id) : null,
+            threadId: matches[0].message?.threadId ? String(matches[0].message.threadId) : null,
+            labelIds: [],
+          }),
           reconciled: true,
         });
       }

@@ -26,7 +26,7 @@ The repository currently includes:
 - Gmail mailbox/label/message read foundations;
 - bounded plain-text Gmail send, draft-create, and draft-update transport;
 - one-attempt Gmail writes so non-idempotent provider writes are not automatically replayed; and
-- **ambiguous Gmail send reconciliation** using a server-owned deterministic RFC Message-ID and bounded Sent-folder lookup. Confirmed matches return reconciled send metadata; unresolved outcomes fail closed as non-retryable `provider-write-outcome-unknown` rather than risking an automatic duplicate send.
+- **ambiguous Gmail send and draft-write reconciliation** using a server-owned deterministic RFC Message-ID and bounded provider lookup. Confirmed matches return reconciled metadata; unresolved outcomes fail closed as non-retryable `provider-write-outcome-unknown` rather than risking an automatic duplicate send or draft write.
 
 Synthetic provider tests validate source contracts without representing a real mailbox as production-connected.
 
@@ -40,7 +40,9 @@ GoreeCloud Mail owns the GoreeCloud client experience, local/trusted-backend log
 
 The Gmail composition foundation is intentionally bounded. It currently supports plain-text message construction with validated recipients and headers, optional trusted From/Reply-To fields where capabilities permit, and one-attempt Gmail API writes.
 
-Send reconciliation is implemented only for **send** when a stable client mutation identifier is supplied. Ambiguous draft create/update reconciliation, durable cross-process operation journals, real Gmail timing/search-consistency acceptance, rich MIME/outgoing attachments, production sender identities, offline replay UX, and production credential custody remain separate milestones.
+When a stable client mutation identifier is supplied, send and draft create/update operations use a server-owned deterministic RFC Message-ID for post-failure reconciliation. Ambiguous send is checked against the Sent mailbox. Ambiguous draft create/update is checked against a bounded Gmail draft search, and an update is accepted only when the unique matching provider draft is the exact draft ID being replaced. No ambiguous write is automatically replayed.
+
+Durable cross-process operation journals, real Gmail timing/search-consistency acceptance, rich MIME/outgoing attachments, production sender identities, offline replay UX, and production credential custody remain separate milestones.
 
 ## Wardveil attachment scanning
 
