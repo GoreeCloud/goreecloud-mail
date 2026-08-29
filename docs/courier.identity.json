@@ -8,9 +8,10 @@
   "repository": "GoreeCloud/goreecloud-mail",
   "role": "Unified first-party mail technology and feature framework powering GoreeCloud Mail",
   "standaloneApplication": false,
-  "supportsHostedMailService": true,
+  "emailServer": false,
+  "supportsHostedMailService": false,
+  "hostedMailServicePlanned": false,
   "supportsExternalProviderInteroperability": true,
-  "hostedMailServiceProductionAccepted": false,
   "providerIndependent": true,
   "designLanguage": "Glaze UI",
   "securityIdentity": "Wardveil Security by GoreeCloud",
@@ -25,9 +26,7 @@
     "Courier Search",
     "Courier Rules",
     "Courier Attachments",
-    "Courier Accounts",
-    "Courier Secure Mail",
-    "Courier Service"
+    "Courier Accounts"
   ],
   "sourceControlMirror": "docs/courier.md"
 }
