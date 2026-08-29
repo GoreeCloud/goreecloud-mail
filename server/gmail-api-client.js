@@ -4,6 +4,7 @@ import { runProviderRequest } from './provider-request-policy.js';
 import { DEFAULT_ATTACHMENT_LIMITS } from './attachment-content-policy.js';
 
 export const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
+const MAX_RAW_MESSAGE_CHARS = 2 * 1024 * 1024;
 
 export class GmailApiClient {
   constructor({
@@ -75,19 +76,56 @@ export class GmailApiClient {
     });
   }
 
-  async #request(path, context) {
+  async sendMessage(context, { raw } = {}) {
+    validateRawMessage(raw);
+    const payload = await this.#request('/messages/send', context, {
+      method: 'POST',
+      body: { raw },
+      replaySafe: false,
+    });
+    return normalizeWriteMessage(payload);
+  }
+
+  async createDraft(context, { raw } = {}) {
+    validateRawMessage(raw);
+    const payload = await this.#request('/drafts', context, {
+      method: 'POST',
+      body: { message: { raw } },
+      replaySafe: false,
+    });
+    return normalizeDraft(payload);
+  }
+
+  async updateDraft(context, { draftId, raw } = {}) {
+    if (!draftId) throw new TypeError('draftId is required');
+    validateRawMessage(raw);
+    const payload = await this.#request(`/drafts/${encodeURIComponent(draftId)}`, context, {
+      method: 'PUT',
+      body: { message: { raw } },
+      replaySafe: false,
+    });
+    return normalizeDraft(payload);
+  }
+
+  async #request(path, context, { method = 'GET', body, replaySafe = true } = {}) {
     const accessToken = await this.tokenResolver(context);
     if (!accessToken) throw new Error('Gmail access token is unavailable.');
 
     try {
+      const policyOptions = replaySafe
+        ? this.requestPolicyOptions
+        : { ...this.requestPolicyOptions, maxAttempts: 1 };
+
       return await this.requestPolicy(async ({ signal }) => {
         const response = await this.fetchImpl(`${this.apiBase}${path}`, {
-          method: 'GET',
+          method,
           signal,
           headers: {
             authorization: `Bearer ${accessToken}`,
             accept: 'application/json',
+            ...(body === undefined ? {} : { 'content-type': 'application/json' }),
           },
+          body: body === undefined ? undefined : JSON.stringify(body),
         });
 
         if (!response.ok) {
@@ -97,7 +135,7 @@ export class GmailApiClient {
           throw error;
         }
         return await response.json();
-      }, this.requestPolicyOptions);
+      }, policyOptions);
     } catch (error) {
       throw normalizeProviderError(error);
     }
@@ -115,6 +153,36 @@ export function decodeBase64Url(value) {
   const normalized = value.replaceAll('-', '+').replaceAll('_', '/');
   const padding = '='.repeat((4 - (normalized.length % 4)) % 4);
   return Buffer.from(normalized + padding, 'base64');
+}
+
+function validateRawMessage(raw) {
+  if (typeof raw !== 'string' || !raw || !/^[A-Za-z0-9_-]+$/.test(raw)) {
+    throw new ProviderError('The Gmail message payload is invalid.', {
+      code: PROVIDER_ERROR_CODES.INVALID_REQUEST,
+      status: 400,
+    });
+  }
+  if (raw.length > MAX_RAW_MESSAGE_CHARS) {
+    throw new ProviderError('The Gmail message payload exceeds the configured transport limit.', {
+      code: PROVIDER_ERROR_CODES.INVALID_REQUEST,
+      status: 413,
+    });
+  }
+}
+
+function normalizeWriteMessage(payload = {}) {
+  return Object.freeze({
+    id: payload?.id ? String(payload.id) : null,
+    threadId: payload?.threadId ? String(payload.threadId) : null,
+    labelIds: Array.isArray(payload?.labelIds) ? payload.labelIds.map(String) : [],
+  });
+}
+
+function normalizeDraft(payload = {}) {
+  return Object.freeze({
+    id: payload?.id ? String(payload.id) : null,
+    message: normalizeWriteMessage(payload?.message || {}),
+  });
 }
 
 function parseRetryAfter(value) {
