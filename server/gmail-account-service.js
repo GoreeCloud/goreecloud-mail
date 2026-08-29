@@ -1,7 +1,11 @@
+import { createHash } from 'node:crypto';
+
 import { requireSessionUser } from './session-context.js';
 import { ProviderError, PROVIDER_ERROR_CODES } from '../web/providers/provider-error.js';
 import { MAIL_PROVIDER_CAPABILITY } from '../web/mail-provider.js';
 import { buildGmailRawMessage } from './gmail-message-builder.js';
+
+const MAX_CLIENT_MUTATION_ID_CHARS = 256;
 
 export class GmailAccountService {
   constructor({ accountService, gmailClientFactory }) {
@@ -61,8 +65,22 @@ export class GmailAccountService {
       message,
       capability: MAIL_PROVIDER_CAPABILITY.SEND,
     });
-    const built = buildGmailRawMessage(message);
-    return this.gmailClientFactory(context).sendMessage(context, { raw: built.raw });
+    const reconciliationMessageId = deriveReconciliationMessageId({
+      accountId: context.accountId,
+      clientMutationId: message?.clientMutationId,
+    });
+    const built = buildGmailRawMessage({
+      ...message,
+      ...(reconciliationMessageId ? { messageId: reconciliationMessageId } : {}),
+    });
+    const client = this.gmailClientFactory(context);
+
+    try {
+      return await client.sendMessage(context, { raw: built.raw });
+    } catch (error) {
+      if (!reconciliationMessageId || !isAmbiguousWriteFailure(error)) throw error;
+      return this.#reconcileAmbiguousSend({ client, context, messageId: reconciliationMessageId });
+    }
   }
 
   async createDraft({ session, accountId, message }) {
@@ -86,6 +104,24 @@ export class GmailAccountService {
     });
     const built = buildGmailRawMessage(message);
     return this.gmailClientFactory(context).updateDraft(context, { draftId, raw: built.raw });
+  }
+
+  async #reconcileAmbiguousSend({ client, context, messageId }) {
+    try {
+      const matches = await client.findSentMessageByRfcMessageId(context, { messageId });
+      if (matches.length === 1) {
+        return Object.freeze({
+          id: matches[0].id ? String(matches[0].id) : null,
+          threadId: matches[0].threadId ? String(matches[0].threadId) : null,
+          labelIds: ['SENT'],
+          reconciled: true,
+        });
+      }
+    } catch {
+      // Reconciliation itself must never trigger a replay of the original write.
+    }
+
+    throw unknownWriteOutcome();
   }
 
   async #writeContext({ session, accountId, message, capability }) {
@@ -112,4 +148,42 @@ export class GmailAccountService {
 
     return Object.freeze({ userId, accountId: account.id, provider: account.provider });
   }
+}
+
+export function deriveReconciliationMessageId({ accountId, clientMutationId } = {}) {
+  if (clientMutationId == null || clientMutationId === '') return null;
+  if (typeof clientMutationId !== 'string') invalidMutationId();
+  const normalized = clientMutationId.trim();
+  if (!normalized || normalized.length > MAX_CLIENT_MUTATION_ID_CHARS || /[\r\n\0]/.test(normalized)) {
+    invalidMutationId();
+  }
+  const digest = createHash('sha256')
+    .update(String(accountId || ''))
+    .update('\0')
+    .update(normalized)
+    .digest('hex');
+  return `<goreecloud-${digest}@mail.goreecloud.invalid>`;
+}
+
+function isAmbiguousWriteFailure(error) {
+  return error instanceof ProviderError && (
+    error.code === PROVIDER_ERROR_CODES.TEMPORARY ||
+    error.code === PROVIDER_ERROR_CODES.RATE_LIMITED ||
+    error.code === PROVIDER_ERROR_CODES.UNKNOWN
+  );
+}
+
+function unknownWriteOutcome() {
+  return new ProviderError('The provider write outcome could not be confirmed; automatic replay is disabled.', {
+    code: PROVIDER_ERROR_CODES.WRITE_OUTCOME_UNKNOWN,
+    status: 502,
+    retryable: false,
+  });
+}
+
+function invalidMutationId() {
+  throw new ProviderError('clientMutationId must be a bounded single-line string.', {
+    code: PROVIDER_ERROR_CODES.INVALID_REQUEST,
+    status: 400,
+  });
 }
