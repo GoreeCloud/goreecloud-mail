@@ -5,6 +5,12 @@ import { requireSessionUser } from './session-context.js';
 import { ProviderError, PROVIDER_ERROR_CODES } from '../web/providers/provider-error.js';
 import { buildAttachmentResponseHeaders } from './attachment-content-policy.js';
 import { storeAttachmentStream, removeStoredAttachment } from './attachment-stream-store.js';
+import {
+  AttachmentScanProvenanceError,
+  persistWardveilScanProvenance,
+  readWardveilScanProvenance,
+  removeWardveilScanProvenance,
+} from './attachment-scan-provenance-store.js';
 
 const WARDVEIL_SCAN_CONTRACT_VERSION = '0.1.0';
 const WARDVEIL_ATTACHMENT_RESOURCE_TYPE = 'mail_attachment';
@@ -36,15 +42,11 @@ export class AttachmentSecurityError extends ProviderError {
  * before any downloadable cache object is committed. Only a current,
  * authoritative, exact-digest clean result may proceed to storage.
  *
- * Stored object IDs remain bound to the authenticated GoreeCloud user and
- * provider account. Browser callers never choose filesystem paths and cannot
- * authorize an attachment by knowing another user's object ID.
- *
- * Wardveil scan provenance is intentionally process-local in this increment.
- * If a durable attachment record survives a process restart without its current
- * scan provenance, download authorization fails closed until the content is
- * retrieved and scanned again. Production acceptance still requires durable,
- * revocable Wardveil evidence or a bounded revalidation path.
+ * Minimized clean scan provenance is persisted atomically beside the private
+ * cached object. It contains no raw attachment bytes, provider credentials, or
+ * Wardveil caller secrets. Download authorization can therefore reconstruct
+ * current scan provenance after a service restart while still enforcing the
+ * original Wardveil validity window and exact content digest binding.
  */
 export class AttachmentDeliveryService {
   constructor({ gmailAccountService, wardveilScanClient, rootDir, stateStore = null, storeFn = storeAttachmentStream } = {}) {
@@ -123,6 +125,22 @@ export class AttachmentDeliveryService {
       });
     }
 
+    try {
+      await persistWardveilScanProvenance({
+        rootDir: this.rootDir,
+        objectId: stored.objectId,
+        provenance: scan,
+      });
+    } catch (error) {
+      await removeStoredAttachment({ rootDir: this.rootDir, objectId: stored.objectId }).catch(() => {});
+      throw securityError('Wardveil Scan provenance could not be durably recorded for this attachment.', {
+        code: ATTACHMENT_SECURITY_CODES.SCAN_INVALID,
+        status: 503,
+        decision: blockedDecision('blocked_unverified', 'wardveil_scan_provenance_persistence_failed'),
+        cause: error,
+      });
+    }
+
     const createdAt = new Date(now).toISOString();
     const expiresAt = ttlMs === null ? null : new Date(now + ttlMs).toISOString();
     const record = Object.freeze({
@@ -159,7 +177,10 @@ export class AttachmentDeliveryService {
       this.scanProvenance.set(stored.objectId, scan);
     } catch (error) {
       this.scanProvenance.delete(stored.objectId);
-      await removeStoredAttachment({ rootDir: this.rootDir, objectId: stored.objectId }).catch(() => {});
+      await Promise.allSettled([
+        removeStoredAttachment({ rootDir: this.rootDir, objectId: stored.objectId }),
+        removeWardveilScanProvenance({ rootDir: this.rootDir, objectId: stored.objectId }),
+      ]);
       throw error;
     }
 
@@ -171,12 +192,10 @@ export class AttachmentDeliveryService {
     const record = this.#ownedRecord(userId, objectId);
     if (record.expiresAt && Date.parse(record.expiresAt) <= now) throw notFound();
 
-    const scan = this.scanProvenance.get(record.objectId);
+    let scan = this.scanProvenance.get(record.objectId);
     if (!scan) {
-      throw securityError('Current Wardveil Scan provenance is required before this attachment can be downloaded.', {
-        code: ATTACHMENT_SECURITY_CODES.SCAN_PROVENANCE_MISSING,
-        decision: blockedDecision('blocked_unverified', 'wardveil_scan_provenance_missing'),
-      });
+      scan = this.#loadDurableScanProvenance(record.objectId);
+      this.scanProvenance.set(record.objectId, scan);
     }
     requirePersistedCleanScan(scan, { storedDigest: record.sha256 ?? record.stored?.sha256, now });
 
@@ -205,7 +224,12 @@ export class AttachmentDeliveryService {
   async remove({ session, objectId } = {}) {
     const { userId } = requireSessionUser(session);
     const record = this.#ownedRecord(userId, objectId);
-    await removeStoredAttachment({ rootDir: this.rootDir, objectId: record.objectId });
+    const results = await Promise.allSettled([
+      removeStoredAttachment({ rootDir: this.rootDir, objectId: record.objectId }),
+      removeWardveilScanProvenance({ rootDir: this.rootDir, objectId: record.objectId }),
+    ]);
+    const failure = results.find((result) => result.status === 'rejected');
+    if (failure) throw failure.reason;
     if (this.stateStore) this.stateStore.removeAttachmentDeliveryRecord({ userId, objectId: record.objectId });
     else this.records.delete(record.objectId);
     this.scanProvenance.delete(record.objectId);
@@ -219,7 +243,12 @@ export class AttachmentDeliveryService {
     let removed = 0;
 
     for (const record of expired) {
-      await removeStoredAttachment({ rootDir: this.rootDir, objectId: record.objectId });
+      const results = await Promise.allSettled([
+        removeStoredAttachment({ rootDir: this.rootDir, objectId: record.objectId }),
+        removeWardveilScanProvenance({ rootDir: this.rootDir, objectId: record.objectId }),
+      ]);
+      const failure = results.find((result) => result.status === 'rejected');
+      if (failure) throw failure.reason;
       this.stateStore.removeAttachmentDeliveryRecord({ userId: record.userId, objectId: record.objectId });
       this.scanProvenance.delete(record.objectId);
       removed += 1;
@@ -227,6 +256,26 @@ export class AttachmentDeliveryService {
 
     const remaining = this.stateStore.listExpiredAttachmentDeliveryRecords({ now: nowIso, limit: 1 }).length;
     return Object.freeze({ removed, remaining });
+  }
+
+  #loadDurableScanProvenance(objectId) {
+    try {
+      return readWardveilScanProvenance({ rootDir: this.rootDir, objectId });
+    } catch (error) {
+      if (error instanceof AttachmentScanProvenanceError && error.code === 'wardveil-scan-provenance-missing') {
+        throw securityError('Current Wardveil Scan provenance is required before this attachment can be downloaded.', {
+          code: ATTACHMENT_SECURITY_CODES.SCAN_PROVENANCE_MISSING,
+          decision: blockedDecision('blocked_unverified', 'wardveil_scan_provenance_missing'),
+          cause: error,
+        });
+      }
+      throw securityError('Durable Wardveil Scan provenance for this attachment is invalid.', {
+        code: ATTACHMENT_SECURITY_CODES.SCAN_INVALID,
+        status: 503,
+        decision: blockedDecision('blocked_unverified', 'wardveil_scan_provenance_invalid'),
+        cause: error,
+      });
+    }
   }
 
   #ownedRecord(userId, objectId) {
