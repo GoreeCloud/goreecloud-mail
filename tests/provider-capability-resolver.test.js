@@ -46,10 +46,10 @@ test('send and compose authorization do not imply unimplemented GoreeCloud trans
   assert.equal(capabilities.messageRead, false);
 });
 
-test('labels-only authorization can expose label access without message-body authority', () => {
+test('labels-only authorization exposes labels without message-list or body authority', () => {
   const capabilities = resolveGmailCapabilitiesFromScopes(GMAIL_OAUTH_SCOPE.LABELS);
 
-  assert.equal(capabilities.mailboxAccess, true);
+  assert.equal(capabilities.mailboxAccess, false);
   assert.equal(capabilities.labels, true);
   assert.equal(capabilities.messageRead, false);
   assert.equal(capabilities.attachmentRetrieval, false);
