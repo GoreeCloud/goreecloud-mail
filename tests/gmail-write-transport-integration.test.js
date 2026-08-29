@@ -132,7 +132,7 @@ test('browser knowledge of another users account id cannot execute a Gmail send'
 
   await assert.rejects(
     provider.send({ to: 'recipient@example.test', subject: 'Blocked', body: 'Body' }),
-    (error) => error.code === 'not-found' && error.status === 404,
+    (error) => error.code === 'provider-account-not-found' && error.status === 404,
   );
   assert.equal(calls.length, 0);
 });
