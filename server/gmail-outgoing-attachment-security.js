@@ -5,6 +5,7 @@ import {
   AttachmentSecurityError,
 } from './attachment-delivery-service.js';
 import { buildGmailRawMessage } from './gmail-message-builder.js';
+import { persistOutgoingWardveilScanProvenance } from './outgoing-attachment-scan-provenance-store.js';
 
 const WARDVEIL_SCAN_CONTRACT_VERSION = '0.1.0';
 const WARDVEIL_ATTACHMENT_RESOURCE_TYPE = 'mail_attachment';
@@ -18,22 +19,30 @@ const WARDVEIL_ATTACHMENT_RESOURCE_TYPE = 'mail_attachment';
  * GmailAccountService serializes those same Buffers into the provider write, preventing a
  * scan-one-representation/send-another gap.
  *
- * This gate intentionally does not claim durable outgoing scan provenance yet. It enforces current
- * authoritative clean evidence immediately before the provider write; durable audit retention is a
- * separate acceptance milestone.
+ * Minimized clean scan provenance is durably persisted before this gate returns an authorized
+ * attachment message. A persistence failure therefore blocks Gmail client creation/provider write.
+ * This application provenance is not Wardveil Audit and does not establish production acceptance.
  */
 export class GmailOutgoingAttachmentSecurityGate {
-  constructor({ wardveilScanClient } = {}) {
+  constructor({
+    wardveilScanClient,
+    provenanceRootDir,
+    persistProvenanceFn = persistOutgoingWardveilScanProvenance,
+  } = {}) {
     if (!wardveilScanClient || typeof wardveilScanClient.scan !== 'function') {
       throw new TypeError('wardveilScanClient with scan is required');
     }
+    if (!provenanceRootDir) throw new TypeError('provenanceRootDir is required');
+    if (typeof persistProvenanceFn !== 'function') throw new TypeError('persistProvenanceFn must be a function');
     this.wardveilScanClient = wardveilScanClient;
+    this.provenanceRootDir = provenanceRootDir;
+    this.persistProvenanceFn = persistProvenanceFn;
   }
 
   async authorize({ accountId, message, action, now = Date.now() } = {}) {
     const attachments = Array.isArray(message?.attachments) ? message.attachments : [];
     if (attachments.length === 0) {
-      return Object.freeze({ message, scans: Object.freeze([]) });
+      return Object.freeze({ message, scans: Object.freeze([]), provenance: null });
     }
     if (action !== 'send' && action !== 'draft') {
       throw new TypeError('outgoing attachment action must be send or draft');
@@ -89,12 +98,45 @@ export class GmailOutgoingAttachmentSecurityGate {
       }));
     }
 
+    const operationId = outgoingProvenanceOperationId({
+      accountId,
+      clientMutationId: message?.clientMutationId,
+      action,
+      scans,
+    });
+    try {
+      const persisted = await this.persistProvenanceFn({
+        rootDir: this.provenanceRootDir,
+        operationId,
+        action,
+        scans,
+      });
+      if (
+        !persisted ||
+        persisted.operationId !== operationId ||
+        persisted.action !== action ||
+        !Array.isArray(persisted.scans) ||
+        persisted.scans.length !== scans.length
+      ) {
+        throw new Error('outgoing provenance persistence acknowledgement is invalid');
+      }
+    } catch (error) {
+      throw securityError('Wardveil Scan provenance could not be durably recorded for outgoing attachments.', {
+        code: ATTACHMENT_SECURITY_CODES.SCAN_INVALID,
+        status: 503,
+        retryable: true,
+        reason: 'outgoing_wardveil_scan_provenance_persistence_failed',
+        cause: error,
+      });
+    }
+
     return Object.freeze({
       message: Object.freeze({
         ...message,
         attachments: Object.freeze(securedAttachments),
       }),
       scans: Object.freeze(scans),
+      provenance: Object.freeze({ operationId, persisted: true }),
     });
   }
 }
@@ -118,6 +160,29 @@ function outgoingResourceId({ accountId, clientMutationId, index, digestSha256 }
     .update(digestSha256, 'ascii')
     .digest('hex');
   return `mail:outgoing:${digest}`;
+}
+
+function outgoingProvenanceOperationId({ accountId, clientMutationId, action, scans }) {
+  const digest = createHash('sha256')
+    .update('goreecloud-mail-outgoing-wardveil-provenance-v1', 'utf8')
+    .update('\0')
+    .update(String(accountId ?? ''), 'utf8')
+    .update('\0')
+    .update(String(clientMutationId ?? ''), 'utf8')
+    .update('\0')
+    .update(action, 'ascii');
+  for (const scan of scans) {
+    digest
+      .update('\0')
+      .update(scan.resourceId, 'utf8')
+      .update('\0')
+      .update(scan.digestSha256, 'ascii')
+      .update('\0')
+      .update(scan.recordId, 'utf8')
+      .update('\0')
+      .update(scan.correlationId, 'utf8');
+  }
+  return digest.digest('hex');
 }
 
 function requireCurrentCleanOutgoingScan(envelope, { resourceId, digestSha256, now }) {
