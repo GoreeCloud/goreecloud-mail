@@ -9,7 +9,9 @@ CONTRACT = ROOT / "contracts" / "wardveil.mail-attachment-scan.json"
 REFERENCE = ROOT / "reference" / "mail_attachment_security.py"
 CLIENT = ROOT / "server" / "wardveil-scan-client.js"
 DELIVERY = ROOT / "server" / "attachment-delivery-service.js"
+PROVENANCE = ROOT / "server" / "attachment-scan-provenance-store.js"
 DELIVERY_TEST = ROOT / "tests" / "attachment-delivery-service.test.js"
+PROVENANCE_TEST = ROOT / "tests" / "attachment-scan-provenance-store.test.js"
 DOC = ROOT / "docs" / "wardveil-attachment-scanning.md"
 PLATFORM = ROOT / "docs" / "PLATFORM_CONFORMANCE.md"
 README = ROOT / "README.md"
@@ -21,19 +23,21 @@ def require(condition: bool, message: str) -> None:
 
 
 def main() -> None:
-    for path in (CONTRACT, REFERENCE, CLIENT, DELIVERY, DELIVERY_TEST, DOC, PLATFORM, README):
+    for path in (CONTRACT, REFERENCE, CLIENT, DELIVERY, PROVENANCE, DELIVERY_TEST, PROVENANCE_TEST, DOC, PLATFORM, README):
         require(path.is_file(), f"missing required file: {path.relative_to(ROOT)}")
 
     contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
     reference = REFERENCE.read_text(encoding="utf-8")
     client = CLIENT.read_text(encoding="utf-8")
     delivery = DELIVERY.read_text(encoding="utf-8")
-    delivery_test = DELIVERY_TEST.read_text(encoding="utf-8")
+    provenance = PROVENANCE.read_text(encoding="utf-8")
+    delivery_test = DELIVERY_TEST.read_text(encoding="utf-8").lower()
+    provenance_test = PROVENANCE_TEST.read_text(encoding="utf-8").lower()
     doc = DOC.read_text(encoding="utf-8").lower()
     platform = PLATFORM.read_text(encoding="utf-8").lower()
     readme = README.read_text(encoding="utf-8").lower()
 
-    require(contract.get("contract_version") == "0.3.0", "unexpected Mail integration contract version")
+    require(contract.get("contract_version") == "0.4.0", "unexpected Mail integration contract version")
     require(contract.get("consumer") == "GoreeCloud Mail", "unexpected consumer identity")
     require(contract.get("wardveil_runtime_contract_version") == "0.1.0", "unexpected Wardveil runtime contract")
     require(contract.get("resource_type") == "mail_attachment", "unexpected attachment resource type")
@@ -63,16 +67,8 @@ def main() -> None:
     require(transport.get("distributed_replay_protection_accepted") is False, "source transport must not claim distributed replay protection")
 
     expected_signed_fields = {
-        "caller_id",
-        "key_id",
-        "timestamp",
-        "nonce",
-        "action",
-        "resource_type",
-        "resource_id",
-        "correlation_id",
-        "size_bytes",
-        "digest_sha256",
+        "caller_id", "key_id", "timestamp", "nonce", "action", "resource_type",
+        "resource_id", "correlation_id", "size_bytes", "digest_sha256",
     }
     require(set(transport.get("signature_binds") or ()) == expected_signed_fields, "Wardveil signature binding set changed")
 
@@ -94,11 +90,44 @@ def main() -> None:
         "suspicious_content_stored_for_download",
         "unknown_content_stored_for_download",
         "unsupported_content_stored_for_download",
-        "durable_scan_provenance_persisted",
-        "automatic_rescan_after_restart_implemented",
     ):
         require(enforcement.get(key) is False, f"delivery enforcement acceptance boundary changed: {key}")
     require(enforcement.get("scan_action") == "download", "Mail delivery scan action must be download")
+
+    durable = contract.get("durable_scan_provenance") or {}
+    for key in (
+        "implemented",
+        "atomic_write",
+        "size_bounded",
+        "integrity_sha256",
+        "object_id_binding",
+        "clean_only",
+        "stores_scan_record_id",
+        "stores_correlation_id",
+        "stores_producer_id",
+        "stores_observed_at",
+        "stores_valid_until",
+        "stores_content_digest",
+        "stores_evidence_refs",
+        "restart_rehydration",
+        "missing_provenance_fails_closed",
+        "corrupt_or_tampered_provenance_fails_closed",
+        "evidence_expiry_enforced_after_restart",
+        "cleanup_coordinated_with_attachment",
+    ):
+        require(durable.get(key) is True, f"durable scan provenance missing invariant: {key}")
+    require(durable.get("storage") == "private_attachment_sidecar_json", "unexpected durable scan provenance storage")
+    require(durable.get("schema_version") == 1, "unexpected durable scan provenance schema")
+    require(durable.get("file_mode") == "0600", "durable scan provenance must be mode 0600")
+    require(durable.get("max_bytes") == 65536, "unexpected durable scan provenance size bound")
+    for key in (
+        "stores_raw_attachment_content",
+        "stores_provider_credentials",
+        "stores_wardveil_caller_secrets",
+        "production_authenticated_provenance_store_accepted",
+        "automatic_rescan_after_restart_implemented",
+    ):
+        require(durable.get(key) is False, f"durable scan provenance acceptance boundary changed: {key}")
 
     mapping = contract.get("result_mapping") or {}
     require(mapping.get("clean") == "allow_only_when_all_validation_passes", "clean mapping is not fail closed")
@@ -117,78 +146,57 @@ def main() -> None:
     require(privacy.get("credentials_or_provider_tokens_in_security_records") is False, "provider credentials must not enter security records")
 
     for token in (
-        'EXPECTED_RESOURCE_TYPE = "mail_attachment"',
-        'sha256(content).hexdigest()',
-        'record.get("result")',
-        '"obsolete_scan_result_field"',
-        '"content_digest_mismatch"',
-        '"non_authoritative_scan_record"',
-        '"clean_scan_evidence_expired"',
-        '"wardveil_scan_malicious"',
-        '"requires_explicit_executor_authority": True',
+        'EXPECTED_RESOURCE_TYPE = "mail_attachment"', 'sha256(content).hexdigest()', 'record.get("result")',
+        '"obsolete_scan_result_field"', '"content_digest_mismatch"', '"non_authoritative_scan_record"',
+        '"clean_scan_evidence_expired"', '"wardveil_scan_malicious"', '"requires_explicit_executor_authority": True',
         '"destructive_action": False',
     ):
         require(token in reference, f"reference implementation missing invariant: {token}")
 
     for token in (
-        "WARDVEIL_SCAN_CONTRACT_VERSION = '0.1.0'",
-        "MAIL_ATTACHMENT_RESOURCE_TYPE = 'mail_attachment'",
-        "endpoint.protocol !== 'http:'",
-        "endpoint.hostname !== '127.0.0.1'",
-        "redirect: 'manual'",
-        "'x-wardveil-caller-id'",
-        "'x-wardveil-key-id'",
-        "'x-wardveil-timestamp'",
-        "'x-wardveil-nonce'",
-        "'x-wardveil-digest-sha256'",
-        "'x-wardveil-correlation-id'",
-        "'x-wardveil-signature'",
-        "Object.hasOwn(record, 'scan_result')",
-        "record.result",
-        "response correlation mismatch",
-        "response resource binding mismatch",
+        "WARDVEIL_SCAN_CONTRACT_VERSION = '0.1.0'", "MAIL_ATTACHMENT_RESOURCE_TYPE = 'mail_attachment'",
+        "endpoint.protocol !== 'http:'", "endpoint.hostname !== '127.0.0.1'", "redirect: 'manual'",
+        "'x-wardveil-caller-id'", "'x-wardveil-key-id'", "'x-wardveil-timestamp'", "'x-wardveil-nonce'",
+        "'x-wardveil-digest-sha256'", "'x-wardveil-correlation-id'", "'x-wardveil-signature'",
+        "Object.hasOwn(record, 'scan_result')", "record.result", "response correlation mismatch", "response resource binding mismatch",
     ):
         require(token in client, f"Mail Wardveil transport missing invariant: {token}")
 
     for token in (
-        "wardveilScanClient with scanAttachment is required",
-        "await this.wardveilScanClient.scanAttachment",
-        "action: 'download'",
-        "requireCurrentCleanScan",
-        "stored.sha256 !== expectedDigest",
-        "stored.sha256 !== scan.digestSha256",
-        "SCAN_PROVENANCE_MISSING",
-        "this.scanProvenance.get(record.objectId)",
-        "requirePersistedCleanScan",
-        "this.scanProvenance.delete(record.objectId)",
-        "quarantineRequired",
-        "Object.hasOwn(record, 'scan_result')",
+        "wardveilScanClient with scanAttachment is required", "await this.wardveilScanClient.scanAttachment", "action: 'download'",
+        "requireCurrentCleanScan", "stored.sha256 !== expectedDigest", "stored.sha256 !== scan.digestSha256",
+        "persistWardveilScanProvenance", "readWardveilScanProvenance", "removeWardveilScanProvenance",
+        "this.#loadDurableScanProvenance", "requirePersistedCleanScan", "this.scanProvenance.delete(record.objectId)",
+        "quarantineRequired", "Object.hasOwn(record, 'scan_result')",
     ):
         require(token in delivery, f"attachment delivery missing Wardveil enforcement invariant: {token}")
 
-    for phrase in (
-        "malicious wardveil result blocks storage",
-        "suspicious, unknown, and unsupported wardveil results never create downloadable cache objects",
-        "scanner transport failure fails closed before storage",
-        "expired clean wardveil evidence fails closed before storage",
-        "scan digest mismatch fails closed before storage",
-        "content changed between scan and storage is rolled back",
-        "clean evidence expiry blocks a previously stored attachment",
-        "missing scan provenance fails closed",
+    for token in (
+        "const PROVENANCE_SCHEMA_VERSION = 1", "const MAX_PROVENANCE_BYTES = 64 * 1024", "timingSafeEqual",
+        "'wx', 0o600", "integrity_sha256", "Only current clean Wardveil scan provenance may be persisted",
+        "wardveil-scan-provenance-missing", "removeWardveilScanProvenance",
     ):
-        require(phrase in delivery_test.lower(), f"attachment-delivery tests missing case: {phrase}")
+        require(token in provenance, f"durable scan provenance store missing invariant: {token}")
 
     for phrase in (
-        "mail does not connect directly to clamav",
-        "quarantine is not deletion",
-        "unknown and unsupported results fail closed",
-        "production runtime status remains `unaccepted`",
-        "privacy shield boundary",
-        "everkeep integration",
-        "hardened wardveil scan transport",
-        "scan_record.result",
-        "attachment-delivery enforcement",
-        "missing scan provenance",
+        "malicious wardveil result blocks storage", "suspicious, unknown, and unsupported wardveil results never create downloadable cache objects",
+        "scanner transport failure fails closed before storage", "expired clean wardveil evidence fails closed before storage",
+        "scan digest mismatch fails closed before storage", "content changed between scan and storage is rolled back",
+        "clean evidence expiry blocks a previously stored attachment", "durable wardveil scan provenance survives service recreation",
+        "missing durable scan provenance after restart fails closed", "tampered durable scan provenance after restart fails closed",
+    ):
+        require(phrase in delivery_test, f"attachment-delivery tests missing case: {phrase}")
+
+    for phrase in (
+        "round trips with restrictive file mode", "contains minimized security metadata rather than raw attachment content or secrets",
+        "rejects non-clean state", "tampering fails integrity verification", "missing provenance is distinguishable",
+    ):
+        require(phrase in provenance_test, f"scan-provenance tests missing case: {phrase}")
+
+    for phrase in (
+        "mail does not connect directly to clamav", "quarantine is not deletion", "unknown and unsupported results fail closed",
+        "production runtime status remains `unaccepted`", "privacy shield boundary", "everkeep integration",
+        "hardened wardveil scan transport", "scan_record.result", "attachment-delivery enforcement", "durable scan provenance",
     ):
         require(phrase in doc, f"integration documentation missing boundary: {phrase}")
 
@@ -198,7 +206,7 @@ def main() -> None:
     require("wardveil attachment scanning" in readme, "README must expose Wardveil attachment integration")
     require("production deployment is not approved" in readme, "README must preserve production gate")
 
-    print("GoreeCloud Mail Wardveil attachment integration validation passed.")
+    print("GoreeCloud Mail Wardveil durable attachment security integration validation passed.")
 
 
 if __name__ == "__main__":
