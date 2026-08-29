@@ -42,7 +42,7 @@ def record(result: str, *, authoritative: bool = True, observed_at=None, valid_u
         "observed_at": observed_at.isoformat(),
         "valid_until": valid_until.isoformat(),
         "evidence_refs": ["wardveil:evidence:scan-1"] if evidence else [],
-        "scan_result": result,
+        "result": result,
     }
 
 
@@ -59,6 +59,14 @@ def test_current_clean_allows_open_and_download():
     assert decision.disposition == "allow"
     assert decision.can_open and decision.can_download
     assert not decision.quarantine_required
+
+
+def test_obsolete_scan_result_field_fails_closed():
+    obsolete = record("clean")
+    obsolete["scan_result"] = obsolete.pop("result")
+    decision = evaluate_attachment_scan(ATTACHMENT, CONTENT, envelope(obsolete), now=NOW)
+    assert decision.disposition == "blocked_unverified"
+    assert "obsolete_scan_result_field" in decision.reason_codes
 
 
 def test_expired_clean_fails_closed():
