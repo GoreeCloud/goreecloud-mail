@@ -80,7 +80,7 @@ Gmail, IMAP, SMTP, or another provider remains responsible for provider-side mes
 
 ## Attachment-delivery enforcement
 
-`server/attachment-delivery-service.js` now makes Wardveil Scan part of the actual trusted attachment-delivery path rather than treating scan evidence as a detached reference decision.
+`server/attachment-delivery-service.js` makes Wardveil Scan part of the actual trusted attachment-delivery path rather than treating scan evidence as a detached reference decision.
 
 The service requires a Wardveil Scan client at construction time. After provider-account ownership is verified and provider bytes are retrieved, the exact bytes are submitted to Wardveil with lifecycle action `download` before a downloadable cache object is committed. The service independently verifies the Wardveil record contract, authority, scope, resource identity, SHA-256 digest, result, evidence references, observation time, and validity window before allowing storage.
 
@@ -88,29 +88,40 @@ Only a current clean result may continue to downloadable storage. Suspicious, ma
 
 After storage, Mail compares the stored SHA-256 digest with both the provider-byte digest and the digest bound to the accepted Wardveil Scan evidence. A mismatch is treated as content changed during scan or storage, the newly stored object is removed, and no delivery record is accepted.
 
-Download authorization rechecks that the remembered scan result is clean, that the scan validity window remains current, and that the stored metadata digest still matches the scan digest. Expired clean evidence cannot continue authorizing download.
+Download authorization rechecks that the remembered or durably restored scan result is clean, that the scan validity window remains current, and that the stored metadata digest still matches the scan digest. Expired clean evidence cannot continue authorizing download.
 
-Current scan provenance is intentionally process-local in this source increment. Durable attachment-delivery metadata may survive a process restart, but if the current Wardveil scan provenance is no longer present, download authorization fails closed with missing scan provenance instead of treating the old cache as permanently clean. Durable Wardveil scan provenance or an automatic bounded re-scan path remains an explicit productionization requirement.
+## Durable scan provenance
 
-This design means a restart can temporarily make a previously clean cached attachment unavailable. That is preferable to reusing security evidence whose current validity can no longer be established.
+`server/attachment-scan-provenance-store.js` persists a minimized clean-result Wardveil provenance sidecar beside the private cached attachment. The sidecar uses schema version 1, is bounded to 64 KiB, is atomically written through a temporary file, and is created with file mode `0600` under the private attachment root.
+
+The durable record contains only the attachment object binding, clean result, scan record ID, correlation ID, producer ID, observation time, validity deadline, SHA-256 content digest, and bounded evidence references. It does not contain raw attachment bytes, provider credentials or tokens, Wardveil caller secrets, filenames, message bodies, or unrestricted diagnostics.
+
+The sidecar contains a SHA-256 integrity digest over the persisted provenance payload. Mail verifies that digest before reuse and fails closed if the record is malformed, too large, missing, bound to the wrong attachment object, or has been changed without a matching integrity digest. This integrity check detects corruption or uncoordinated modification; it is not represented as a production cryptographic signature or as an authenticated security ledger.
+
+After a service restart, durable attachment metadata can be paired with the private Wardveil sidecar and download authorization can continue without issuing a new scan only while the original evidence remains current and the stored attachment digest still matches the Scan digest. Missing, corrupt, tampered, expired, or digest-mismatched provenance fails closed.
+
+Attachment removal, expiry cleanup, and metadata-persistence rollback coordinate deletion of both the cached bytes and the provenance sidecar. The durable sidecar is application-local security provenance; production acceptance still requires the broader production service-identity, key, replay, audit, recovery, and operational evidence defined by Wardveil.
+
+Automatic re-scan after restart is not implemented because durable current provenance makes it unnecessary for an otherwise valid cached object. A new scan is still required after evidence expiry, content change, unsupported provenance, or another condition that invalidates the existing evidence.
 
 ## Production acceptance
 
-This implementation is an executable source-level GoreeCloud Mail consumer of Wardveil Scan with attachment-delivery enforcement, but production runtime status remains `unaccepted`.
+This implementation is an executable source-level GoreeCloud Mail consumer of Wardveil Scan with attachment-delivery enforcement and durable minimized scan provenance, but production runtime status remains `unaccepted`.
 
 Production acceptance still requires:
 
 - deployment of the hardened Wardveil Scan service revision on the target runtime;
 - a deployed Mail backend that executes the real attachment-delivery service and Wardveil client against the deployed Wardveil service;
-- durable, revocable scan provenance or a bounded automatic re-scan path after service restart;
+- production acceptance of the local provenance storage permissions, lifecycle cleanup, corruption/failure behavior, backup/recovery treatment, and any required migration or revalidation policy;
 - GoreeCloud Identity-backed service identity, short-lived credentials, rotation, and revocation acceptance replacing reference HMAC custody;
-- controlled clean, EICAR/malicious, suspicious, unsupported, timeout, scanner-unavailable, digest-mismatch, changed-during-scan, replay, capacity-exhaustion, revoked-credential, and stale-evidence tests;
+- deployment-appropriate durable replay protection for Scan requests;
+- controlled clean, EICAR/malicious, suspicious, unsupported, timeout, scanner-unavailable, digest-mismatch, changed-during-scan, replay, capacity-exhaustion, revoked-credential, stale-evidence, missing-provenance, and tampered-provenance runtime tests;
 - verified provider attachment retrieval and byte-for-byte digest binding;
-- application-side result-handling failure tests;
+- application-side result-handling and persistence-failure tests in the deployed environment;
 - authorized Wardveil Quarantine execution evidence for supported Mail targets;
 - Audit and Security Center provenance acceptance for scan and enforcement outcomes;
-- user-visible Glaze UI states for allowed, held, blocked, quarantined, expired, and unavailable scanning states;
+- user-visible Glaze UI states for allowed, held, blocked, quarantined, expired, invalid-provenance, and unavailable scanning states;
 - Privacy Shield validation for data minimization;
-- Everkeep integration where attachment recovery or preservation behavior applies.
+- Everkeep integration for backup/recovery treatment of cached attachments and security provenance where applicable.
 
 Passing repository CI proves source-level contract behavior only. It does not prove deployed malware protection or authorize a broad Protected by Wardveil claim.
