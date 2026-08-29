@@ -10,12 +10,15 @@ GoreeCloud Mail is a client platform. The configured provider remains authoritat
 
 - Runtime vocabulary and fail-closed helpers: `web/mail-provider.js`
 - Trusted account-scoped resolution and enforcement: `server/provider-account-service.js`
-- Trusted capability-discovery API route: `server/mail-api-router.js`
+- Trusted capability-discovery and write API routes: `server/mail-api-router.js`
+- Provider-independent write dispatch: `server/provider-operation-service.js`
 - Gmail execution enforcement: `server/gmail-account-service.js`
 - Gmail OAuth-scope resolver: `server/gmail-capability-resolver.js`
+- Gmail raw message construction: `server/gmail-message-builder.js`
+- Gmail provider transport: `server/gmail-api-client.js`
 - External provider resolver dispatcher: `server/provider-capability-resolver.js`
 - Machine-readable contract: `contracts/courier.provider-capabilities.json`
-- Provider interface rules: `docs/provider-interface-contracts.md`
+- Gmail write safety contract: `docs/gmail-write-transport.md`
 
 ## Rules
 
@@ -28,6 +31,7 @@ GoreeCloud Mail is a client platform. The configured provider remains authoritat
 7. Browser callers do not supply authoritative provider capability state. Capability discovery is resolved after trusted session and provider-account ownership checks.
 8. A capability shown in the UI is not an authorization boundary by itself. Provider transport must independently require the relevant trusted account capability before execution.
 9. Provider OAuth scope is necessary but not sufficient for an effective capability. GoreeCloud Mail must also have the corresponding trusted provider implementation before the capability can become true.
+10. Provider writes that are not proven replay-safe must not inherit automatic retry behavior merely because read operations do.
 
 ## Trusted Backend Discovery
 
@@ -43,53 +47,57 @@ The resolver receives the trusted account record plus the session-derived intern
 
 Two accounts using the same provider may return different capability sets because scopes, account type, organization policy, provider configuration, or feature availability can differ. The resolver result is normalized through the shared capability vocabulary before exposure.
 
-When no capability resolver is configured, discovery returns a normalized all-false capability set. This is intentional fail-closed behavior and does not imply that the provider lacks the feature universally; it means the current trusted backend has not established authority for that account.
-
-Cross-user knowledge of an opaque provider-account identifier does not authorize capability discovery. Ownership failure returns the same provider-account-not-found boundary and occurs before the provider resolver is called.
+When no capability resolver is configured, discovery returns a normalized all-false capability set. Cross-user knowledge of an opaque provider-account identifier does not authorize capability discovery.
 
 ## Trusted Execution Enforcement
 
-`ProviderAccountService.requireCapabilities()` resolves the current account capability state once and requires every named capability before it returns provider-account authority to a transport service. A missing capability raises the bounded `ProviderCapabilityUnavailableError` with `provider-capability-unavailable`, HTTP status 400, the required capability, and opaque account context.
+`ProviderAccountService.requireCapabilities()` resolves the current account capability state and requires every named capability before it returns provider-account authority to a transport service. A missing capability raises the bounded `provider-capability-unavailable` state.
 
-The Gmail account service now applies this enforcement before creating or invoking Gmail transport:
+The Gmail account service currently enforces:
 
-- label listing requires `labels`;
-- message listing requires `mailboxAccess`;
-- full message retrieval requires `messageRead`;
-- attachment retrieval requires `mailboxAccess` and `attachmentRetrieval`.
+- label listing -> `labels`;
+- message listing -> `mailboxAccess`;
+- full message retrieval -> `messageRead`;
+- attachment retrieval -> `mailboxAccess` + `attachmentRetrieval`;
+- direct send -> `send`;
+- draft create/update -> `drafts`;
+- an explicitly caller-requested From identity -> the operation capability plus `senderIdentities`.
 
-Wrong-provider and cross-user checks occur before provider capability execution. If a capability is unavailable, the Gmail transport factory is not called.
-
-Future Microsoft, Yahoo, and IMAP/SMTP execution services should apply the same pattern with the specific capabilities required by each normalized operation.
+Wrong-provider and cross-user checks occur before provider execution. If authority is unavailable, Gmail transport is not invoked.
 
 ## Gmail OAuth-Scope Resolution
 
-GoreeCloud Mail now includes a conservative Gmail resolver that derives effective account capabilities from the OAuth scopes stored inside the trusted credential-vault boundary.
-
-The resolver recognizes the current Gmail API scope identifiers used for full-mail, modify, read-only, labels, compose, send, metadata, and settings authorization. Scope parsing accepts the space-delimited representation returned by OAuth token responses and normalized stored arrays or sets.
+GoreeCloud Mail derives effective Gmail account capabilities from OAuth scope metadata stored inside the trusted credential-vault boundary.
 
 Effective capability is the intersection of provider authorization and GoreeCloud implementation. At the current source milestone:
 
-- `gmail.modify`, `gmail.readonly`, or full-mail authorization may establish `mailboxAccess`, `messageRead`, `attachmentRetrieval`, and `labels` because those read-side Gmail operations exist in the trusted transport;
-- `gmail.labels` may establish `labels` without establishing `mailboxAccess`, message-body authority, or attachment authority; the Gmail service therefore permits label listing while still rejecting message listing under a labels-only grant;
-- `gmail.send` and `gmail.compose` do **not** establish `send` or `drafts` because GoreeCloud Mail has not yet implemented the corresponding trusted Gmail write transports;
+- `gmail.modify` or full-mail authorization may establish the implemented read-side capabilities, `send`, and `drafts`;
+- `gmail.readonly` may establish read-side capabilities but no writes;
+- `gmail.labels` may establish `labels` without mailbox/message/attachment authority;
+- `gmail.send` may establish `send` but not `drafts` or mailbox reads;
+- `gmail.compose` may establish `send` and `drafts` but does not by itself establish mailbox reads;
 - missing credential authorization returns the normalized all-false capability set;
-- providers without an implemented provider-specific resolver return the normalized all-false capability set.
+- providers without an implemented provider-specific resolver return the normalized all-false capability set;
+- `senderIdentities` remains false until provider-confirmed sender/send-as identity discovery and enforcement is implemented.
 
-The resolver reads the credential record only after the provider-account ownership boundary has succeeded. Cross-user account references therefore fail before another user's stored OAuth scope metadata can influence capability state.
+The resolver reads credential state only after provider-account ownership succeeds. Cross-user references therefore fail before another user's OAuth scope metadata can influence capability state.
 
-The Gmail scope names follow Google's published Gmail API OAuth scope definitions. Any future scope mapping change must be reviewed against current provider documentation and the actual GoreeCloud transport implementation rather than inferred from provider branding.
+## Gmail Write Boundary
 
-## Feature-Gating Examples
+The generic browser gateway already uses opaque account paths. The trusted router now maps the corresponding write operations through `ProviderOperationService`:
 
-A local reminder, Wardveil attachment decision, Privacy Shield remote-content control, or client-side writing tool can be available without a provider-specific capability when it operates entirely inside the GoreeCloud-controlled boundary.
+```text
+POST /api/mail/accounts/{accountId}/messages
+POST /api/mail/accounts/{accountId}/drafts
+PUT  /api/mail/accounts/{accountId}/drafts/{draftId}
+```
 
-A scheduled-send button that depends on provider-side scheduling must require `scheduledSend`. A custom-domain administration surface must require `customDomains`. Organization retention controls must require `retentionControls`. Unsupported actions should be hidden or clearly unavailable and must never be represented as completed successfully.
+The Gmail implementation converts bounded plain-text message input into base64url RFC-formatted `raw` content and calls the Gmail API `messages.send`, `drafts.create`, or `drafts.update` resource operation.
 
-UI feature gating improves usability, but the trusted backend remains the enforcement authority for any action that requires provider state or transport.
+Send/draft writes force one provider request attempt even when the shared provider request policy is configured for multiple retries. Ambiguous write reconciliation remains a future milestone.
 
 ## Future Provider Adapters
 
-Each provider adapter should map its real authorized account features into the shared capability vocabulary. Provider-specific concepts may remain inside the adapter, but Courier Core should consume normalized capability names only.
+Each provider adapter should map its real authorized account features into the shared capability vocabulary and enforce those capabilities again before transport. Provider-specific concepts may remain inside the adapter, but Courier Core should consume normalized capability names only.
 
-Provider capability discovery and source-level enforcement are prerequisites to provider-dependent execution; neither is evidence that a real provider connection has been production-accepted.
+Source-level capability discovery and execution do not establish real-provider or production acceptance. Real provider credentials, live mailbox behavior, production secret custody, sender identities, ambiguous-write recovery, observability, and deployment require separate evidence.
