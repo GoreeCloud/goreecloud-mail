@@ -37,7 +37,8 @@ test('ProviderAccountService resolves Gmail capabilities from the owned account 
   assert.equal(result.capabilities.messageRead, true);
   assert.equal(result.capabilities.attachmentRetrieval, true);
   assert.equal(result.capabilities.labels, true);
-  assert.equal(result.capabilities.send, false);
+  assert.equal(result.capabilities.send, true);
+  assert.equal(result.capabilities.drafts, true);
 });
 
 test('labels-only Gmail scope can list labels but cannot list messages', async () => {
