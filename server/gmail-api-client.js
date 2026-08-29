@@ -86,6 +86,15 @@ export class GmailApiClient {
     return normalizeWriteMessage(payload);
   }
 
+  async findSentMessageByRfcMessageId(context, { messageId } = {}) {
+    validateRfcMessageId(messageId);
+    const listing = await this.listMessages(context, {
+      query: `in:sent rfc822msgid:${messageId}`,
+      maxResults: 2,
+    });
+    return Object.freeze(listing.messageRefs.map((ref) => Object.freeze({ ...ref })));
+  }
+
   async createDraft(context, { raw } = {}) {
     validateRawMessage(raw);
     const payload = await this.#request('/drafts', context, {
@@ -166,6 +175,15 @@ function validateRawMessage(raw) {
     throw new ProviderError('The Gmail message payload exceeds the configured transport limit.', {
       code: PROVIDER_ERROR_CODES.INVALID_REQUEST,
       status: 413,
+    });
+  }
+}
+
+function validateRfcMessageId(messageId) {
+  if (typeof messageId !== 'string' || !/^<[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+>$/.test(messageId)) {
+    throw new ProviderError('The Gmail reconciliation Message-ID is invalid.', {
+      code: PROVIDER_ERROR_CODES.INVALID_REQUEST,
+      status: 400,
     });
   }
 }

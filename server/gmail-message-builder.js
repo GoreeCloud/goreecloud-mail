@@ -16,6 +16,7 @@ export function buildGmailRawMessage(input = {}) {
   const replyTo = optionalMailboxValue(input.replyTo, 'replyTo');
   const inReplyTo = optionalHeaderValue(input.inReplyTo, 'inReplyTo');
   const references = optionalHeaderValue(input.references, 'references');
+  const messageId = optionalMessageId(input.messageId);
   const body = typeof input.body === 'string'
     ? input.body
     : typeof input.text === 'string'
@@ -36,6 +37,7 @@ export function buildGmailRawMessage(input = {}) {
     ...(bcc.length ? [`Bcc: ${bcc.join(', ')}`] : []),
     ...(from ? [`From: ${from}`] : []),
     ...(replyTo ? [`Reply-To: ${replyTo}`] : []),
+    ...(messageId ? [`Message-ID: ${messageId}`] : []),
     ...(inReplyTo ? [`In-Reply-To: ${inReplyTo}`] : []),
     ...(references ? [`References: ${references}`] : []),
     `Subject: ${encodeUnstructuredHeader(subject)}`,
@@ -51,6 +53,7 @@ export function buildGmailRawMessage(input = {}) {
     raw: Buffer.from(rfcMessage, 'utf8').toString('base64url'),
     byteLength: Buffer.byteLength(rfcMessage, 'utf8'),
     recipientCount: to.length + cc.length + bcc.length,
+    messageId,
   });
 }
 
@@ -97,6 +100,15 @@ function normalizeMailboxValue(value, field) {
 function optionalHeaderValue(value, field) {
   if (value == null || value === '') return null;
   return normalizeHeaderValue(value, field, GMAIL_MESSAGE_LIMITS.headerValueChars);
+}
+
+function optionalMessageId(value) {
+  if (value == null || value === '') return null;
+  const normalized = normalizeHeaderValue(value, 'messageId', GMAIL_MESSAGE_LIMITS.headerValueChars);
+  if (!/^<[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+>$/.test(normalized)) {
+    invalid('messageId must be a single RFC-style Message-ID value');
+  }
+  return normalized;
 }
 
 function normalizeHeaderValue(value, field, maxChars) {

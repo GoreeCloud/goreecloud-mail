@@ -7,6 +7,7 @@ export const PROVIDER_ERROR_CODES = Object.freeze({
   UNSUPPORTED: 'unsupported-operation',
   CAPABILITY_UNAVAILABLE: 'provider-capability-unavailable',
   INVALID_REQUEST: 'invalid-request',
+  WRITE_OUTCOME_UNKNOWN: 'provider-write-outcome-unknown',
   UNKNOWN: 'provider-failure',
 });
 
