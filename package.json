@@ -2,7 +2,7 @@
   "name": "goreecloud-mail",
   "version": "0.1.0-dev",
   "private": true,
-  "description": "Privacy-first GoreeCloud email and communication platform foundation",
+  "description": "Privacy-first GoreeCloud email client foundation",
   "type": "module",
   "scripts": {
     "test": "node --test",
