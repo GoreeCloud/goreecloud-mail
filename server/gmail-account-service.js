@@ -14,10 +14,7 @@ export class GmailAccountService {
     const context = await this.#context({
       session,
       accountId,
-      requiredCapabilities: [
-        MAIL_PROVIDER_CAPABILITY.MAILBOX_ACCESS,
-        MAIL_PROVIDER_CAPABILITY.LABELS,
-      ],
+      requiredCapabilities: [MAIL_PROVIDER_CAPABILITY.LABELS],
     });
     return this.gmailClientFactory(context).listLabels(context);
   }

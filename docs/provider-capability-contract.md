@@ -12,6 +12,8 @@ GoreeCloud Mail is a client platform. The configured provider remains authoritat
 - Trusted account-scoped resolution and enforcement: `server/provider-account-service.js`
 - Trusted capability-discovery API route: `server/mail-api-router.js`
 - Gmail execution enforcement: `server/gmail-account-service.js`
+- Gmail OAuth-scope resolver: `server/gmail-capability-resolver.js`
+- External provider resolver dispatcher: `server/provider-capability-resolver.js`
 - Machine-readable contract: `contracts/courier.provider-capabilities.json`
 - Provider interface rules: `docs/provider-interface-contracts.md`
 
@@ -25,6 +27,7 @@ GoreeCloud Mail is a client platform. The configured provider remains authoritat
 6. Provider capability declarations do not include GoreeCloud mailbox hosting, MX service, inbound Internet mail, GoreeCloud outbound Internet delivery, or sender-reputation operations.
 7. Browser callers do not supply authoritative provider capability state. Capability discovery is resolved after trusted session and provider-account ownership checks.
 8. A capability shown in the UI is not an authorization boundary by itself. Provider transport must independently require the relevant trusted account capability before execution.
+9. Provider OAuth scope is necessary but not sufficient for an effective capability. GoreeCloud Mail must also have the corresponding trusted provider implementation before the capability can become true.
 
 ## Trusted Backend Discovery
 
@@ -50,7 +53,7 @@ Cross-user knowledge of an opaque provider-account identifier does not authorize
 
 The Gmail account service now applies this enforcement before creating or invoking Gmail transport:
 
-- label listing requires `mailboxAccess` and `labels`;
+- label listing requires `labels`;
 - message listing requires `mailboxAccess`;
 - full message retrieval requires `messageRead`;
 - attachment retrieval requires `mailboxAccess` and `attachmentRetrieval`.
@@ -58,6 +61,24 @@ The Gmail account service now applies this enforcement before creating or invoki
 Wrong-provider and cross-user checks occur before provider capability execution. If a capability is unavailable, the Gmail transport factory is not called.
 
 Future Microsoft, Yahoo, and IMAP/SMTP execution services should apply the same pattern with the specific capabilities required by each normalized operation.
+
+## Gmail OAuth-Scope Resolution
+
+GoreeCloud Mail now includes a conservative Gmail resolver that derives effective account capabilities from the OAuth scopes stored inside the trusted credential-vault boundary.
+
+The resolver recognizes the current Gmail API scope identifiers used for full-mail, modify, read-only, labels, compose, send, metadata, and settings authorization. Scope parsing accepts the space-delimited representation returned by OAuth token responses and normalized stored arrays or sets.
+
+Effective capability is the intersection of provider authorization and GoreeCloud implementation. At the current source milestone:
+
+- `gmail.modify`, `gmail.readonly`, or full-mail authorization may establish `mailboxAccess`, `messageRead`, `attachmentRetrieval`, and `labels` because those read-side Gmail operations exist in the trusted transport;
+- `gmail.labels` may establish `labels` without establishing `mailboxAccess`, message-body authority, or attachment authority; the Gmail service therefore permits label listing while still rejecting message listing under a labels-only grant;
+- `gmail.send` and `gmail.compose` do **not** establish `send` or `drafts` because GoreeCloud Mail has not yet implemented the corresponding trusted Gmail write transports;
+- missing credential authorization returns the normalized all-false capability set;
+- providers without an implemented provider-specific resolver return the normalized all-false capability set.
+
+The resolver reads the credential record only after the provider-account ownership boundary has succeeded. Cross-user account references therefore fail before another user's stored OAuth scope metadata can influence capability state.
+
+The Gmail scope names follow Google's published Gmail API OAuth scope definitions. Any future scope mapping change must be reviewed against current provider documentation and the actual GoreeCloud transport implementation rather than inferred from provider branding.
 
 ## Feature-Gating Examples
 
