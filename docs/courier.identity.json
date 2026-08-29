@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "officialName": "GoreeCloud Courier",
   "shortName": "Courier",
   "status": "approved-active-development",
@@ -9,10 +9,16 @@
   "role": "Unified first-party mail technology and feature framework powering GoreeCloud Mail",
   "standaloneApplication": false,
   "emailServer": false,
+  "supportsHostedMailService": false,
+  "hostedMailServicePlanned": false,
+  "supportsExternalProviderInteroperability": true,
   "providerIndependent": true,
   "designLanguage": "Glaze UI",
   "securityIdentity": "Wardveil Security by GoreeCloud",
   "privacyIdentity": "GoreeCloud Privacy Shield",
+  "continuityIdentity": "Everkeep",
+  "identitySystem": "GoreeCloud Identity",
+  "coordinationSystem": "GoreeCloud Mesh",
   "capabilityFamilies": [
     "Courier Inbox",
     "Courier Compose",
