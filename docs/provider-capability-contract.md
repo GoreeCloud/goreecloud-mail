@@ -53,7 +53,7 @@ Cross-user knowledge of an opaque provider-account identifier does not authorize
 
 The Gmail account service now applies this enforcement before creating or invoking Gmail transport:
 
-- label listing requires `mailboxAccess` and `labels`;
+- label listing requires `labels`;
 - message listing requires `mailboxAccess`;
 - full message retrieval requires `messageRead`;
 - attachment retrieval requires `mailboxAccess` and `attachmentRetrieval`.
@@ -71,7 +71,7 @@ The resolver recognizes the current Gmail API scope identifiers used for full-ma
 Effective capability is the intersection of provider authorization and GoreeCloud implementation. At the current source milestone:
 
 - `gmail.modify`, `gmail.readonly`, or full-mail authorization may establish `mailboxAccess`, `messageRead`, `attachmentRetrieval`, and `labels` because those read-side Gmail operations exist in the trusted transport;
-- `gmail.labels` may establish label/mailbox access without granting message-body or attachment authority;
+- `gmail.labels` may establish `labels` without establishing `mailboxAccess`, message-body authority, or attachment authority; the Gmail service therefore permits label listing while still rejecting message listing under a labels-only grant;
 - `gmail.send` and `gmail.compose` do **not** establish `send` or `drafts` because GoreeCloud Mail has not yet implemented the corresponding trusted Gmail write transports;
 - missing credential authorization returns the normalized all-false capability set;
 - providers without an implemented provider-specific resolver return the normalized all-false capability set.
