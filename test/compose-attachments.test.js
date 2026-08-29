@@ -79,12 +79,14 @@ test('rejects per-file and total attachment limits', async () => {
     (error) => error instanceof ComposeAttachmentError && error.code === 'attachment-file-size-limit',
   );
 
-  const half = Math.floor(COMPOSE_ATTACHMENT_LIMITS.totalBytes / 2) + 1;
-  const bytes = new Uint8Array(half);
+  const third = Math.floor(COMPOSE_ATTACHMENT_LIMITS.totalBytes / 3) + 1;
+  assert.ok(third <= COMPOSE_ATTACHMENT_LIMITS.perFileBytes);
+  const bytes = new Uint8Array(third);
   await assert.rejects(
     () => materializeComposeAttachments([
       fileLike({ name: 'a.bin', bytes }),
       fileLike({ name: 'b.bin', bytes }),
+      fileLike({ name: 'c.bin', bytes }),
     ]),
     (error) => error instanceof ComposeAttachmentError && error.code === 'attachment-total-size-limit',
   );
