@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -6,6 +9,7 @@ import { ATTACHMENT_SECURITY_CODES } from '../server/attachment-delivery-service
 import { GmailAccountService } from '../server/gmail-account-service.js';
 import { GmailOutgoingAttachmentSecurityGate } from '../server/gmail-outgoing-attachment-security.js';
 import { decodeGmailRawMessage } from '../server/gmail-message-builder.js';
+import { readOutgoingWardveilScanProvenance } from '../server/outgoing-attachment-scan-provenance-store.js';
 
 const TEST_NOW = Date.parse('2026-08-29T20:30:00.000Z');
 
@@ -57,9 +61,21 @@ function messageWithAttachment() {
   };
 }
 
-test('outgoing gate scans exact validated bytes and returns those same bytes for MIME serialization', async () => {
+async function withRoot(run) {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), 'goreecloud-mail-outgoing-gate-'));
+  try {
+    return await run(rootDir);
+  } finally {
+    await rm(rootDir, { recursive: true, force: true });
+  }
+}
+
+test('outgoing gate scans exact validated bytes, durably records clean provenance, and returns those same bytes for MIME serialization', async () => withRoot(async (rootDir) => {
   const calls = [];
-  const gate = new GmailOutgoingAttachmentSecurityGate({ wardveilScanClient: scanClient(calls) });
+  const gate = new GmailOutgoingAttachmentSecurityGate({
+    wardveilScanClient: scanClient(calls),
+    provenanceRootDir: rootDir,
+  });
   const result = await gate.authorize({
     accountId: 'account-a',
     message: messageWithAttachment(),
@@ -75,20 +91,34 @@ test('outgoing gate scans exact validated bytes and returns those same bytes for
   assert.deepEqual(result.message.attachments[0].bytes, calls[0].bytes);
   assert.equal(result.message.attachments[0].filename, 'report.txt');
   assert.equal(result.message.attachments[0].contentType, 'text/plain');
+  assert.equal(result.provenance.persisted, true);
+  assert.match(result.provenance.operationId, /^[0-9a-f]{64}$/);
+
+  const persisted = readOutgoingWardveilScanProvenance({
+    rootDir,
+    operationId: result.provenance.operationId,
+  });
+  assert.equal(persisted.action, 'send');
+  assert.equal(persisted.scans.length, 1);
+  assert.equal(persisted.scans[0].recordId, 'outgoing-clean-1');
+  assert.equal(persisted.scans[0].digestSha256, createHash('sha256').update(calls[0].bytes).digest('hex'));
 
   const built = decodeGmailRawMessage(
     (await import('../server/gmail-message-builder.js')).buildGmailRawMessage(result.message).raw,
   );
   assert.match(built, /ZXhhY3Qgb3V0Z29pbmcgYnl0ZXM=/);
-});
+}));
 
-test('outgoing gate blocks malicious, suspicious, unknown, and expired evidence before provider writes', async () => {
+test('outgoing gate blocks malicious, suspicious, unknown, and expired evidence before provider writes', async () => withRoot(async (rootDir) => {
   for (const [result, expectedCode] of [
     ['malicious', ATTACHMENT_SECURITY_CODES.SCAN_BLOCKED],
     ['suspicious', ATTACHMENT_SECURITY_CODES.SCAN_HELD],
     ['unknown', ATTACHMENT_SECURITY_CODES.SCAN_INVALID],
   ]) {
-    const gate = new GmailOutgoingAttachmentSecurityGate({ wardveilScanClient: scanClient([], { result }) });
+    const gate = new GmailOutgoingAttachmentSecurityGate({
+      wardveilScanClient: scanClient([], { result }),
+      provenanceRootDir: rootDir,
+    });
     await assert.rejects(
       () => gate.authorize({ accountId: 'account-a', message: messageWithAttachment(), action: 'send', now: TEST_NOW }),
       (error) => error.code === expectedCode,
@@ -97,16 +127,18 @@ test('outgoing gate blocks malicious, suspicious, unknown, and expired evidence 
 
   const expired = new GmailOutgoingAttachmentSecurityGate({
     wardveilScanClient: scanClient([], { validUntil: '2026-08-29T20:29:30.000Z' }),
+    provenanceRootDir: rootDir,
   });
   await assert.rejects(
     () => expired.authorize({ accountId: 'account-a', message: messageWithAttachment(), action: 'send', now: TEST_NOW }),
     (error) => error.code === ATTACHMENT_SECURITY_CODES.SCAN_EXPIRED,
   );
-});
+}));
 
-test('outgoing gate maps scanner transport failure to retryable fail-closed state', async () => {
+test('outgoing gate maps scanner transport failure to retryable fail-closed state', async () => withRoot(async (rootDir) => {
   const gate = new GmailOutgoingAttachmentSecurityGate({
     wardveilScanClient: scanClient([], { throwError: new Error('private scanner detail') }),
+    provenanceRootDir: rootDir,
   });
   await assert.rejects(
     () => gate.authorize({ accountId: 'account-a', message: messageWithAttachment(), action: 'draft', now: TEST_NOW }),
@@ -116,7 +148,42 @@ test('outgoing gate maps scanner transport failure to retryable fail-closed stat
       error.retryable === true &&
       !/private scanner detail/.test(error.message),
   );
-});
+}));
+
+test('outgoing provenance persistence failure blocks before Gmail client creation', async () => withRoot(async (rootDir) => {
+  let clientCreations = 0;
+  const gate = new GmailOutgoingAttachmentSecurityGate({
+    wardveilScanClient: scanClient([], {
+      observedAt: new Date(Date.now() - 60_000).toISOString(),
+      validUntil: new Date(Date.now() + 10 * 60_000).toISOString(),
+    }),
+    provenanceRootDir: rootDir,
+    persistProvenanceFn: async () => {
+      throw new Error('private persistence detail');
+    },
+  });
+  const service = new GmailAccountService({
+    accountService: {
+      get: () => ({ id: 'account-a', provider: 'gmail' }),
+      requireCapabilities: async () => {},
+    },
+    outgoingAttachmentSecurityGate: gate,
+    gmailClientFactory: () => {
+      clientCreations += 1;
+      return { sendMessage: async () => ({ id: 'sent-1' }) };
+    },
+  });
+
+  await assert.rejects(
+    () => service.send({ session: { userId: 'user-a' }, accountId: 'account-a', message: messageWithAttachment() }),
+    (error) =>
+      error.code === ATTACHMENT_SECURITY_CODES.SCAN_INVALID &&
+      error.status === 503 &&
+      error.retryable === true &&
+      !/private persistence detail/.test(error.message),
+  );
+  assert.equal(clientCreations, 0);
+}));
 
 test('GmailAccountService refuses attachment writes when no outgoing Wardveil gate is configured', async () => {
   let clientCreations = 0;
@@ -138,25 +205,39 @@ test('GmailAccountService refuses attachment writes when no outgoing Wardveil ga
   assert.equal(clientCreations, 0);
 });
 
-test('GmailAccountService scans before send and serializes only authorized attachment bytes', async () => {
+test('GmailAccountService persists clean provenance before send and serializes only authorized attachment bytes', async () => withRoot(async (rootDir) => {
   const scanCalls = [];
+  const events = [];
+  const gate = new GmailOutgoingAttachmentSecurityGate({
+    wardveilScanClient: scanClient(scanCalls, {
+      observedAt: new Date(Date.now() - 60_000).toISOString(),
+      validUntil: new Date(Date.now() + 10 * 60_000).toISOString(),
+    }),
+    provenanceRootDir: rootDir,
+    persistProvenanceFn: async (args) => {
+      const { persistOutgoingWardveilScanProvenance } = await import('../server/outgoing-attachment-scan-provenance-store.js');
+      const persisted = await persistOutgoingWardveilScanProvenance(args);
+      events.push({ type: 'persisted', operationId: persisted.operationId });
+      return persisted;
+    },
+  });
   const providerCalls = [];
-  const gate = new GmailOutgoingAttachmentSecurityGate({ wardveilScanClient: scanClient(scanCalls, {
-    observedAt: new Date(Date.now() - 60_000).toISOString(),
-    validUntil: new Date(Date.now() + 10 * 60_000).toISOString(),
-  }) });
   const service = new GmailAccountService({
     accountService: {
       get: () => ({ id: 'account-a', provider: 'gmail' }),
       requireCapabilities: async () => {},
     },
     outgoingAttachmentSecurityGate: gate,
-    gmailClientFactory: () => ({
-      async sendMessage(_context, { raw }) {
-        providerCalls.push(raw);
-        return { id: 'sent-1', threadId: 'thread-1', labelIds: ['SENT'] };
-      },
-    }),
+    gmailClientFactory: () => {
+      events.push({ type: 'client-created' });
+      return {
+        async sendMessage(_context, { raw }) {
+          events.push({ type: 'provider-write' });
+          providerCalls.push(raw);
+          return { id: 'sent-1', threadId: 'thread-1', labelIds: ['SENT'] };
+        },
+      };
+    },
   });
 
   const result = await service.send({
@@ -168,7 +249,14 @@ test('GmailAccountService scans before send and serializes only authorized attac
   assert.equal(result.id, 'sent-1');
   assert.equal(scanCalls.length, 1);
   assert.equal(providerCalls.length, 1);
+  assert.deepEqual(events.map((event) => event.type), ['persisted', 'client-created', 'provider-write']);
   assert.deepEqual(scanCalls[0].bytes, Buffer.from('exact outgoing bytes', 'utf8'));
   assert.match(decodeGmailRawMessage(providerCalls[0]), /Content-Disposition: attachment;/);
   assert.match(decodeGmailRawMessage(providerCalls[0]), /ZXhhY3Qgb3V0Z29pbmcgYnl0ZXM=/);
-});
+
+  const persisted = readOutgoingWardveilScanProvenance({
+    rootDir,
+    operationId: events[0].operationId,
+  });
+  assert.equal(persisted.scans[0].digestSha256, createHash('sha256').update(scanCalls[0].bytes).digest('hex'));
+}));
