@@ -151,7 +151,9 @@ def evaluate_attachment_scan(
     if scope.get("resource_type") != EXPECTED_RESOURCE_TYPE or scope.get("resource_id") != attachment.resource_id:
         return _blocked("scan_scope_mismatch", record_id=record_id, evidence=evidence)
 
-    result = record.get("scan_result")
+    if "scan_result" in record:
+        return _blocked("obsolete_scan_result_field", record_id=record_id, evidence=evidence)
+    result = record.get("result")
     if result not in SCAN_RESULTS:
         return _blocked("unsupported_scan_result", record_id=record_id, evidence=evidence)
 
@@ -194,7 +196,6 @@ def evaluate_attachment_scan(
     if result in {"unknown", "unsupported"}:
         return _blocked(f"wardveil_scan_{result}", record_id=record_id, evidence=evidence)
 
-    # Only a clean result can reach this point.
     if not evidence:
         return _blocked("clean_scan_missing_evidence_refs", record_id=record_id)
     if observed_now > valid_until:

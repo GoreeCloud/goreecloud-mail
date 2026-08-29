@@ -12,6 +12,16 @@ The source-level flow is:
 
 ClamAV may be one replaceable engine beneath Wardveil Scan, but Mail must remain engine-independent.
 
+## Hardened Wardveil Scan transport
+
+`server/wardveil-scan-client.js` is the Mail-side source implementation for the hardened Wardveil Scan transport introduced by Wardveil Security revision `842d792c128906e70d41028e3153ea527c1d1899`.
+
+The client permits only explicit IPv4 loopback HTTP to `/v1/scan`, refuses redirects, and signs each request using the Wardveil 0.1.0 canonical request material. The signature binds caller ID, key ID, timestamp, nonce, action, resource type, resource ID, correlation ID, exact byte length, and SHA-256 digest. The default caller identity is `goreecloud-mail` and only `mail_attachment` scope is emitted by this client.
+
+Responses must be bounded JSON, must bind the same resource identity and digest, and must return the same correlation ID. Mail accepts the canonical application envelope field `scan_record.result`; the older `scan_result` field is rejected rather than interpreted.
+
+This HMAC-SHA256 transport is Foundation 0.9 reference-compatible source behavior. It is not accepted production GoreeCloud Identity service authentication, production signing-key lifecycle, or distributed replay protection.
+
 ## Attachment identity and digest binding
 
 The consumer assigns the canonical resource type `mail_attachment` and resource identity:
@@ -33,6 +43,7 @@ A clean result enables opening or downloading only when all of the following hol
 - the producer is explicitly authoritative;
 - represented resource type and resource ID match the attachment;
 - the content digest matches the exact attachment bytes;
+- the canonical application record field is `result`;
 - evidence references are present;
 - `observed_at` is not future-dated;
 - `valid_until` is later than `observed_at` and has not expired.
@@ -61,7 +72,7 @@ Quarantine is not deletion. Removal, release, or other destructive actions remai
 
 ## Privacy Shield boundary
 
-Mail must not copy raw attachment bytes, provider credentials, OAuth tokens, app passwords, cookies, or unrestricted message content into shared Wardveil security records. Shared evidence should contain only the minimum identifiers, digests, status, timestamps, and references required for the security decision.
+Mail must not copy raw attachment bytes, provider credentials, OAuth tokens, app passwords, cookies, Wardveil caller secrets, or unrestricted message content into shared Wardveil security records. Shared evidence should contain only the minimum identifiers, digests, status, timestamps, and references required for the security decision.
 
 ## Provider boundary
 
@@ -69,17 +80,18 @@ Gmail, IMAP, SMTP, or another provider remains responsible for provider-side mes
 
 ## Production acceptance
 
-This implementation is the first executable GoreeCloud Mail consumer of Wardveil Scan, but production runtime status remains `unaccepted`.
+This implementation is an executable source-level GoreeCloud Mail consumer of Wardveil Scan, but production runtime status remains `unaccepted`.
 
 Production acceptance still requires:
 
-- a deployed Wardveil Scan endpoint available to the Mail runtime;
-- authenticated and authorized Mail-to-Wardveil service communication;
-- controlled clean, EICAR/malicious, suspicious, unsupported, timeout, digest-mismatch, and stale-evidence tests;
+- deployment of the hardened Wardveil Scan service revision on the target runtime;
+- a deployed Mail backend that executes this client against the deployed Wardveil service;
+- GoreeCloud Identity-backed service identity, short-lived credentials, rotation, and revocation acceptance replacing reference HMAC custody;
+- controlled clean, EICAR/malicious, suspicious, unsupported, timeout, scanner-unavailable, digest-mismatch, replay, revoked-credential, and stale-evidence tests;
 - verified provider attachment retrieval and byte-for-byte digest binding;
 - authorized Wardveil Quarantine execution evidence for supported Mail targets;
 - user-visible Glaze UI states for allowed, held, blocked, quarantined, and unavailable scanning states;
 - Privacy Shield validation for data minimization;
 - Everkeep integration where attachment recovery or preservation behavior applies.
 
-Passing repository CI proves source-level contract behavior only. It does not prove deployed malware protection.
+Passing repository CI proves source-level contract behavior only. It does not prove deployed malware protection or authorize a broad Protected by Wardveil claim.
