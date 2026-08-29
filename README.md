@@ -1,17 +1,16 @@
 # GoreeCloud Mail
 
-Privacy-first, secure first-party GoreeCloud email and communication platform for web, Linux, Android, and iOS, with native GoreeCloud-hosted service direction, external-provider interoperability, Glaze UI, Wardveil Security, Privacy Shield, Everkeep, GoreeCloud Identity, and GoreeCloud Mesh integration.
+Privacy-first, secure first-party GoreeCloud email client and communication experience for web, Linux, Android, and iOS, with provider-independent access to compatible external mail services, Glaze UI, Wardveil Security, Privacy Shield, Everkeep, GoreeCloud Identity, and GoreeCloud Mesh integration.
 
 ## Status
 
 **Active development. Production deployment is not approved.**
 
-The approved product scope now extends beyond the original client-only boundary. GoreeCloud Mail is intended to operate in two explicit modes:
+GoreeCloud Mail is a **client platform**, not a GoreeCloud-operated email provider. Mailbox hosting and Internet mail transport remain the responsibility of configured external providers such as Gmail, Microsoft Outlook/Exchange-compatible services, Yahoo Mail, and other compatible providers exposed through provider APIs or standards such as IMAP and SMTP.
 
-- **GoreeCloud-hosted service mode** for first-party mailbox hosting, inbound/outbound mail transport, custom domains, aliases, retention, organization controls, protected storage, and related service capabilities as they are implemented and accepted.
-- **External-provider interoperability mode** for compatible providers through provider-independent contracts, including the existing Gmail API and standards-based IMAP/SMTP foundations.
+There are **no current plans** for GoreeCloud Mail to operate mailbox hosting, MX infrastructure, inbound SMTP servers, outbound mail-delivery infrastructure, sender-reputation systems, or a GoreeCloud email-provider service. That boundary may be reconsidered only through a future explicit architecture decision.
 
-The scope expansion is a product and architecture decision, not a claim that hosted mail transport is already running. Current `main` before this development branch remains the source-validated provider/client and Wardveil attachment-security foundation. Hosted mailbox service, MX operation, production SMTP delivery, custom-domain hosting, real-provider production connectivity, and the complete feature target remain separately pending implementation and acceptance.
+Self-hosted GoreeCloud Mail deployment refers to hosting the GoreeCloud Mail application and trusted backend, not hosting users' Internet email service.
 
 ## Current implementation foundation
 
@@ -19,7 +18,7 @@ The repository currently includes:
 
 - Glaze UI responsive web shell and Mail reader foundation;
 - provider-independent `MailProvider` contract and same-origin provider gateway;
-- Gmail and IMAP/SMTP external-provider adapter foundations;
+- Gmail and standards-based IMAP/SMTP external-provider adapter foundations;
 - trusted session-derived GoreeCloud user identity and user-scoped provider-account handling;
 - OAuth state lifecycle, Gmail PKCE/OAuth construction, token refresh/revocation, and normalized provider errors;
 - bounded provider timeout, retry, backoff, and rate-limit handling;
@@ -29,61 +28,56 @@ The repository currently includes:
 - fail-closed HTML message policy pending a maintained production sanitizer;
 - Privacy Shield remote-content defaults;
 - attachment byte inspection, private object storage, ownership-bound delivery, expiry, and cleanup;
-- Wardveil Scan signed transport, exact content binding, fail-closed attachment-delivery enforcement, and minimized durable clean-scan provenance;
-- a platform-mode capability contract on the scope-expansion branch that explicitly separates `goreecloud-hosted` authority from `external-provider` authority.
+- Wardveil Scan signed transport, exact content binding, fail-closed attachment-delivery enforcement, and minimized durable clean-scan provenance.
 
-Synthetic provider tests continue to prove important isolation, lifecycle, retry, synchronization, idempotency, content-boundary, encryption, persistence, migration, backup, recovery, and attachment semantics without representing a real mailbox as production-connected.
+Synthetic provider tests prove important isolation, lifecycle, retry, synchronization, idempotency, content-boundary, encryption, persistence, migration, backup, recovery, and attachment semantics without representing a real mailbox as production-connected.
 
 ## Product role
 
-GoreeCloud Mail is GoreeCloud's first-party email and communication platform. It combines mailbox and conversation experiences, composition, search, automation, intelligent assistance, privacy, security, identity, synchronization, continuity, interoperability, and approved first-party mail-service capabilities.
+GoreeCloud Mail is GoreeCloud's first-party email client and communication platform experience. It owns the GoreeCloud interface, workflows, local/trusted-backend logic, privacy controls, security integration, synchronization behavior, intelligent assistance, and wider GoreeCloud interoperability while external providers remain authoritative for mailbox hosting and external mail transport.
 
-**GoreeCloud Courier** is the unified first-party mail technology and feature framework powering GoreeCloud Mail. Courier is not a separate application or repository.
+**GoreeCloud Courier** is the unified first-party mail technology and feature framework powering GoreeCloud Mail. Courier is not a separate application, provider, or repository.
 
 ## Capability target
 
 The approved native built-in target includes:
 
-- complete inbox and multi-account management;
-- labels, categories, priority/focused/split inboxes, VIPs, and custom views;
-- advanced, saved, smart-folder, server-side, and natural-language search;
-- rules, unsubscribe, automated cleanup, triage, and plain-language automation;
-- snooze, reminders, follow-up, awaiting-reply, reply queues, and inbox-zero workflows;
-- rich/plain composition, attachments, aliases, identities, signatures, templates, groups, and snippets;
-- scheduled send, Undo Send, delivery timing, and supported receipt/read-state capabilities;
-- native spelling, grammar, predictive writing, drafting, rewriting, summarization, and context-aware assistance;
-- intelligent digests, sender classification, meeting/calendar context, attachment filing, newsletter management, and mailbox insights;
-- secure-mail targets including OpenPGP, PGP/MIME, S/MIME, digital signatures, client-side encryption, eligible end-to-end protected workflows, and zero-access storage modes only where the implemented architecture actually supports that claim;
+- unified inbox, multiple accounts, conversation views, standard/custom mailboxes, bulk actions, pinning, muting, stars/flags, and preview-pane workflows;
+- labels, categories, priority/focused/split inboxes, VIPs, sender grouping, custom sections, and intelligent categorization;
+- advanced, saved, smart-folder, provider/server-assisted, and natural-language search;
+- rules, unsubscribe, automated cleanup, triage, sender classification, and plain-language automation;
+- snooze, reminders, follow-up, awaiting-reply, needs-reply, reply queues, inbox-zero, and unwanted-mail workflows;
+- rich/plain composition, attachments, aliases and sender identities where supported, signatures, templates, groups, snippets, and dynamic placeholders;
+- scheduled send, Undo Send, configurable send delay, delivery timing, and supported receipt/read-state capabilities;
+- spelling, grammar, predictive writing, drafting, rewriting, tone adjustment, summarization, and context-aware assistance;
+- intelligent digests, sender classification, meeting/calendar context, attachment filing, newsletter management, and mailbox/storage insights;
+- secure-mail targets including OpenPGP, PGP/MIME, S/MIME, digital signatures, client-side encryption, eligible end-to-end protected workflows, and protected local/cache storage only where the implemented architecture supports the claim;
 - Wardveil-backed phishing, suspicious-link, malicious-attachment, sender/authentication, spam, and account protection;
-- Privacy Shield tracking/IP/remote-content protections, protected-message controls, aliases, and custom domains;
-- organization administration, retention, policy, security-event history, interoperability, and private/self-hosted deployment capability;
+- Privacy Shield tracking/IP/remote-content protections, protected-message controls, private/disposable aliases, and provider-supported custom-domain addresses;
+- organization policy, retention, administration, and distribution features where the configured provider and authorized GoreeCloud integration can support them;
 - deep first-party integration with GoreeCloud Sync, Drive, Location, Backups, Identity, Wardveil Security, Privacy Shield, Everkeep, Mesh, Contacts, Calendar, Tasks, Notes/Memos, Notify, Search, and future approved GoreeCloud services.
 
 See [FEATURES.md](FEATURES.md) for the capability inventory and state rules.
 
-## Architecture modes
+## Provider architecture
 
-### GoreeCloud-hosted service
+GoreeCloud Mail uses normalized provider contracts so Gmail-specific, Microsoft-specific, Yahoo-specific, IMAP-specific, SMTP-specific, or future provider-specific details do not dominate the shared product model.
 
-Hosted mode is the approved direction for first-party mailbox and mail-transport authority. Production acceptance will require explicit architecture and evidence for mailbox lifecycle, storage, indexing, inbound SMTP, outbound delivery, queues/retries/bounces, DKIM/SPF/DMARC alignment, DNS/domain enrollment, spam/abuse controls, reputation/deliverability, retention, administration, observability, disaster recovery, and continuity.
+Browser clients communicate through trusted GoreeCloud service boundaries rather than receiving reusable provider credentials. Provider adapters expose only capabilities the configured provider actually supports. Unsupported actions must fail clearly rather than being simulated or falsely presented as available.
 
-### External providers
-
-The existing provider architecture remains supported. Browser clients communicate through trusted GoreeCloud service boundaries rather than receiving reusable provider credentials. Provider adapters normalize supported operations and capabilities while preserving provider-owned authority.
-
-Hosted-only actions must not silently run against external-provider accounts. External-provider behavior must not be mistaken for GoreeCloud-hosted service authority.
+External providers remain authoritative for mailbox contents, folders/labels, delivery state, account policy, mail transport, domain hosting, aliases, quotas, and provider-owned administration except where a provider explicitly delegates an operation through an authorized API or protocol.
 
 ## Security and privacy boundaries
 
 Email content, HTML, links, attachments, provider responses, protocol data, sender metadata, and remote resources are untrusted input.
 
-Credentials, OAuth codes, refresh tokens, app passwords, cryptographic keys, session material, and other reusable secrets must never be committed to this repository or exposed in browser-visible responses. Cross-user, cross-account, cross-organization, and cross-mode references must fail closed.
+Credentials, OAuth codes, refresh tokens, app passwords, cryptographic keys, session material, and other reusable secrets must never be committed to this repository or exposed in browser-visible responses. Cross-user and cross-account references must fail closed.
 
 Wardveil Security is the security authority for applicable Mail protection decisions. Privacy Shield governs privacy, consent, data minimization, user control, remote resources, tracking protection, intelligent-assistance context, and privacy-sensitive data flows. Everkeep governs continuity and preservation treatment. GoreeCloud Identity governs GoreeCloud identity/authentication/authorization boundaries. GoreeCloud Mesh governs authenticated policy-controlled cross-service coordination.
 
 ## Wardveil attachment scanning
 
-GoreeCloud Mail's trusted attachment-delivery service now requires Wardveil Scan before provider attachment bytes can become a downloadable cached object. Mail does not connect directly to ClamAV and does not reinterpret raw scanner output as an authoritative security verdict.
+GoreeCloud Mail's trusted attachment-delivery service requires Wardveil Scan before provider attachment bytes can become a downloadable cached object. Mail does not connect directly to ClamAV and does not reinterpret raw scanner output as an authoritative security verdict.
 
 Only a current authoritative clean result with exact resource, scope, correlation, evidence, validity, and SHA-256 content binding may proceed. Malicious, suspicious, unknown, unsupported, invalid, expired, or scanner-unavailable outcomes fail closed before downloadable storage. A malicious result may expose a bounded non-destructive quarantine-required state; Mail does not become the Wardveil Quarantine executor.
 
@@ -136,7 +130,7 @@ npm run test:backend
 
 GitHub Actions runs repository tests and static secret-safety checks. Exact-head source validation is required after material security/backend milestones.
 
-Passing source tests do not constitute production acceptance. Real provider connectivity, hosted-mail transport, target-host credential/key custody, production HTML sanitization, durable recovery, runtime hardening, deliverability operations, native packaging, platform-system acceptance, and production-readiness validation remain separate requirements.
+Passing source tests do not constitute production acceptance. Real-provider connectivity, target-host credential/key custody, production HTML sanitization, durable recovery, runtime hardening, native packaging, platform-system acceptance, and production-readiness validation remain separate requirements.
 
 ## License
 
