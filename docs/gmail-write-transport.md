@@ -12,7 +12,8 @@ The implementation follows the Gmail API resource contract:
 
 - send message: `POST /gmail/v1/users/me/messages/send` with a `Message` containing base64url `raw` RFC-formatted mail;
 - create draft: `POST /gmail/v1/users/me/drafts` with a `Draft` containing `message.raw`;
-- update draft: `PUT /gmail/v1/users/me/drafts/{draftId}` with replacement `message.raw`.
+- update draft: `PUT /gmail/v1/users/me/drafts/{draftId}` with replacement `message.raw`;
+- bounded draft reconciliation lookup: `GET /gmail/v1/users/me/drafts?q=rfc822msgid:<generated-id>&maxResults=2`.
 
 The Gmail API response is normalized before it leaves trusted provider code. Raw message bodies, bearer tokens, and unrelated upstream response fields are not returned through the normalized write result.
 
@@ -63,7 +64,7 @@ Current controls include:
 - bounded UTF-8 body size;
 - RFC-style CRLF normalization;
 - UTF-8 encoded-word handling for non-ASCII subjects;
-- optional server-owned RFC-style `Message-ID` insertion for reconciliation-enabled sends;
+- optional server-owned RFC-style `Message-ID` insertion for reconciliation-enabled send and draft writes;
 - MIME version, text/plain UTF-8 content type, and 8bit transfer encoding;
 - base64url conversion for Gmail `raw` transport.
 
@@ -77,22 +78,40 @@ If a caller requests an explicit From identity, `GmailAccountService` additional
 
 Production sender-identity work must bind available From identities to provider-confirmed account/send-as state rather than to browser claims.
 
-## Replay Safety and Send Reconciliation
+## Replay Safety and Write Reconciliation
 
 Read operations may use the existing bounded provider retry policy.
 
 Gmail send, draft create, and draft update remain non-replay-safe writes. The Gmail client forces `maxAttempts: 1` even when the surrounding provider request policy is configured for multiple attempts. This prevents automatic duplicate writes after an ambiguous timeout, rate-limit, or upstream failure.
 
-For **send** only, callers may provide a stable `clientMutationId`. Trusted server code combines that opaque value with the owned account ID, hashes the combination with SHA-256, and emits a deterministic `Message-ID` under the reserved non-routable `mail.goreecloud.invalid` domain. The raw client mutation value and account ID are not embedded into the outgoing header.
+Callers may provide a stable `clientMutationId`. Trusted server code combines that opaque value with the owned account ID, hashes the combination with SHA-256, and emits a deterministic `Message-ID` under the reserved non-routable `mail.goreecloud.invalid` domain. The raw client mutation value and account ID are not embedded into the outgoing header.
 
-If Gmail returns an ambiguous temporary/rate-limit/unknown provider failure after the one allowed send attempt, GoreeCloud Mail does **not** replay the send. It performs a bounded Gmail search for `in:sent rfc822msgid:<generated-id>`:
+If Gmail returns an ambiguous temporary/rate-limit/unknown provider failure after the one allowed write attempt, GoreeCloud Mail does **not** replay the write.
+
+### Send reconciliation
+
+For send, the service performs a bounded Gmail search for `in:sent rfc822msgid:<generated-id>`:
 
 - exactly one matching sent message confirms the provider write and returns bounded normalized message metadata with `reconciled: true`;
 - zero matches, multiple matches, or a reconciliation-read failure produce `provider-write-outcome-unknown`;
 - that outcome is explicitly non-retryable so generic callers do not automatically submit a possibly duplicated message;
 - deterministic request failures such as authorization denial do not invoke reconciliation.
 
-This is a source-level send reconciliation foundation, not proof of Gmail search-consistency behavior under real production timing. Draft create/update reconciliation, offline replay queues, durable cross-process operation journals, and production recovery UX remain separate milestones.
+### Draft create reconciliation
+
+For draft creation, the service performs a bounded draft search for `rfc822msgid:<generated-id>` with `maxResults=2`:
+
+- exactly one matching draft confirms that the create reached Gmail and returns normalized draft metadata with `reconciled: true`;
+- zero matches, multiple matches, or lookup failure produce non-retryable `provider-write-outcome-unknown`;
+- the original draft create is never replayed automatically.
+
+### Draft update reconciliation
+
+For draft replacement, the same bounded Message-ID search is used, but a unique Message-ID match is not sufficient by itself. The matching provider draft ID must equal the exact `draftId` supplied to the attempted update. This prevents an unrelated draft carrying the same reconciliation marker from being treated as confirmation of the requested replacement.
+
+If the unique result resolves to a different draft ID, or if no unique result can be confirmed, the operation fails closed as non-retryable `provider-write-outcome-unknown`. The original update is not replayed.
+
+This is a source-level reconciliation foundation, not proof of Gmail search-consistency behavior under real production timing. Offline replay queues, durable cross-process operation journals, and production recovery UX remain separate milestones.
 
 ## Current Acceptance Boundary
 
@@ -104,8 +123,7 @@ This milestone remains source-development work using injected/synthetic Gmail re
 - production credential-key custody;
 - sender-identity/send-as acceptance;
 - rich MIME or outgoing attachment support;
-- real-provider timing/consistency acceptance for send reconciliation;
-- draft create/update ambiguous-write reconciliation;
+- real-provider timing/consistency acceptance for send or draft reconciliation;
 - durable offline/cross-process operation-journal acceptance;
 - production observability or rate-limit behavior;
 - production deployment.
