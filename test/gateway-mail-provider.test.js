@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 
 import { GatewayMailProvider } from '../web/providers/gateway-mail-provider.js';
 import { ProviderGateway } from '../web/providers/provider-gateway.js';
+import { GmailMailProvider } from '../web/providers/gmail-provider.js';
+import { ImapSmtpMailProvider } from '../web/providers/imap-smtp-provider.js';
 
 function response(body, { status = 200 } = {}) {
   return {
@@ -24,33 +26,118 @@ test('ProviderGateway uses same-origin credentials and JSON bodies', async () =>
     },
   });
 
-  await gateway.request('/providers/gmail/messages', {
+  await gateway.request('/accounts/account-1/messages', {
     method: 'POST',
     body: { subject: 'Hello' },
   });
 
-  assert.equal(calls[0].url, '/api/mail/providers/gmail/messages');
+  assert.equal(calls[0].url, '/api/mail/accounts/account-1/messages');
   assert.equal(calls[0].options.credentials, 'same-origin');
   assert.equal(calls[0].options.headers['content-type'], 'application/json');
   assert.equal(calls[0].options.body, JSON.stringify({ subject: 'Hello' }));
 });
 
-test('GatewayMailProvider encodes identifiers and delegates through the gateway', async () => {
+test('ProviderGateway preserves bounded trusted-backend provider errors', async () => {
+  const gateway = new ProviderGateway({
+    fetchImpl: async () =>
+      response(
+        {
+          error: {
+            code: 'provider-capability-unavailable',
+            message: 'This account cannot perform that provider operation.',
+            retryable: false,
+          },
+        },
+        { status: 400 },
+      ),
+  });
+
+  await assert.rejects(
+    gateway.request('/accounts/account-1/messages'),
+    (error) =>
+      error.code === 'provider-capability-unavailable' &&
+      error.status === 400 &&
+      error.retryable === false &&
+      error.message === 'This account cannot perform that provider operation.',
+  );
+});
+
+test('ProviderGateway normalizes unstructured HTTP failures instead of exposing arbitrary response content', async () => {
+  const gateway = new ProviderGateway({
+    fetchImpl: async () => ({
+      ok: false,
+      status: 503,
+      async json() {
+        throw new Error('invalid response');
+      },
+    }),
+  });
+
+  await assert.rejects(
+    gateway.request('/accounts/account-1/messages'),
+    (error) =>
+      error.code === 'temporary-provider-failure' &&
+      error.status === 503 &&
+      error.retryable === true,
+  );
+});
+
+test('GatewayMailProvider encodes account and message identifiers and unwraps account capability responses', async () => {
   const calls = [];
   const gateway = {
     async request(path, options) {
       calls.push({ path, options });
-      if (path.endsWith('/capabilities')) return { search: true, send: true };
+      if (path.endsWith('/capabilities')) {
+        return {
+          accountId: 'account/with spaces',
+          provider: 'gmail',
+          capabilities: { mailboxAccess: true, search: true, send: true },
+        };
+      }
       return { ok: true };
     },
   };
 
-  const provider = new GatewayMailProvider({ providerId: 'gmail', gateway });
+  const provider = new GatewayMailProvider({ accountId: 'account/with spaces', gateway });
   await provider.getMessage('message/with spaces');
   const capabilities = await provider.capabilities();
 
-  assert.equal(calls[0].path, '/providers/gmail/messages/message%2Fwith%20spaces');
+  assert.equal(
+    calls[0].path,
+    '/accounts/account%2Fwith%20spaces/messages/message%2Fwith%20spaces',
+  );
+  assert.equal(calls[1].path, '/accounts/account%2Fwith%20spaces/capabilities');
+  assert.equal(capabilities.mailboxAccess, true);
   assert.equal(capabilities.search, true);
   assert.equal(capabilities.send, true);
   assert.equal(capabilities.archive, false);
+  assert.equal(Object.hasOwn(capabilities, 'accountId'), false);
+  assert.equal(Object.hasOwn(capabilities, 'provider'), false);
+});
+
+test('GatewayMailProvider still normalizes a direct capability map from compatible gateway implementations', async () => {
+  const provider = new GatewayMailProvider({
+    accountId: 'account-1',
+    gateway: { request: async () => ({ search: true, send: false }) },
+  });
+  const capabilities = await provider.capabilities();
+  assert.equal(capabilities.search, true);
+  assert.equal(capabilities.send, false);
+  assert.equal(capabilities.mailboxAccess, false);
+});
+
+test('provider-specific gateway wrappers carry opaque account authority rather than provider-name routing', () => {
+  const gateway = { request() {} };
+  const gmail = new GmailMailProvider({ accountId: 'gmail-account-1', gateway });
+  const imap = new ImapSmtpMailProvider({ accountId: 'imap-account-1', gateway });
+
+  assert.equal(gmail.path('/capabilities'), '/accounts/gmail-account-1/capabilities');
+  assert.equal(imap.path('/capabilities'), '/accounts/imap-account-1/capabilities');
+  assert.equal('providerId' in gmail, false);
+  assert.equal('providerId' in imap, false);
+});
+
+test('GatewayMailProvider requires an opaque provider account id', () => {
+  const gateway = { request() {} };
+  assert.throws(() => new GatewayMailProvider({ gateway }), /accountId is required/i);
 });

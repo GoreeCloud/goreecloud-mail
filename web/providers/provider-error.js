@@ -5,6 +5,7 @@ export const PROVIDER_ERROR_CODES = Object.freeze({
   RATE_LIMITED: 'rate-limited',
   TEMPORARY: 'temporary-provider-failure',
   UNSUPPORTED: 'unsupported-operation',
+  CAPABILITY_UNAVAILABLE: 'provider-capability-unavailable',
   INVALID_REQUEST: 'invalid-request',
   UNKNOWN: 'provider-failure',
 });

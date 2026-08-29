@@ -1,18 +1,18 @@
 import { normalizeCapabilities } from '../mail-provider.js';
 
 export class GatewayMailProvider {
-  constructor({ providerId, gateway }) {
-    if (!providerId) throw new TypeError('providerId is required.');
+  constructor({ accountId, gateway }) {
+    if (!accountId) throw new TypeError('accountId is required.');
     if (!gateway || typeof gateway.request !== 'function') {
       throw new TypeError('gateway with request() is required.');
     }
 
-    this.providerId = providerId;
+    this.accountId = accountId;
     this.gateway = gateway;
   }
 
   path(suffix = '') {
-    return `/providers/${encodeURIComponent(this.providerId)}${suffix}`;
+    return `/accounts/${encodeURIComponent(this.accountId)}${suffix}`;
   }
 
   authenticate() {
@@ -81,6 +81,7 @@ export class GatewayMailProvider {
   }
 
   async capabilities() {
-    return normalizeCapabilities(await this.gateway.request(this.path('/capabilities')));
+    const result = await this.gateway.request(this.path('/capabilities'));
+    return normalizeCapabilities(result?.capabilities ?? result);
   }
 }

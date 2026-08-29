@@ -1,5 +1,6 @@
 import { requireSessionUser } from './session-context.js';
 import { ProviderError, PROVIDER_ERROR_CODES } from '../web/providers/provider-error.js';
+import { MAIL_PROVIDER_CAPABILITY } from '../web/mail-provider.js';
 
 export class GmailAccountService {
   constructor({ accountService, gmailClientFactory }) {
@@ -10,22 +11,44 @@ export class GmailAccountService {
   }
 
   async listLabels({ session, accountId }) {
-    const context = this.#context({ session, accountId });
+    const context = await this.#context({
+      session,
+      accountId,
+      requiredCapabilities: [
+        MAIL_PROVIDER_CAPABILITY.MAILBOX_ACCESS,
+        MAIL_PROVIDER_CAPABILITY.LABELS,
+      ],
+    });
     return this.gmailClientFactory(context).listLabels(context);
   }
 
   async listMessages({ session, accountId, options = {} }) {
-    const context = this.#context({ session, accountId });
+    const context = await this.#context({
+      session,
+      accountId,
+      requiredCapabilities: [MAIL_PROVIDER_CAPABILITY.MAILBOX_ACCESS],
+    });
     return this.gmailClientFactory(context).listMessages(context, options);
   }
 
   async getMessage({ session, accountId, messageId }) {
-    const context = this.#context({ session, accountId });
+    const context = await this.#context({
+      session,
+      accountId,
+      requiredCapabilities: [MAIL_PROVIDER_CAPABILITY.MESSAGE_READ],
+    });
     return this.gmailClientFactory(context).getMessage(context, messageId);
   }
 
   async getAttachment({ session, accountId, messageId, attachmentId, maxBytes }) {
-    const context = this.#context({ session, accountId });
+    const context = await this.#context({
+      session,
+      accountId,
+      requiredCapabilities: [
+        MAIL_PROVIDER_CAPABILITY.MAILBOX_ACCESS,
+        MAIL_PROVIDER_CAPABILITY.ATTACHMENT_RETRIEVAL,
+      ],
+    });
     return this.gmailClientFactory(context).getAttachment(context, {
       messageId,
       attachmentId,
@@ -33,7 +56,7 @@ export class GmailAccountService {
     });
   }
 
-  #context({ session, accountId }) {
+  async #context({ session, accountId, requiredCapabilities }) {
     const { userId } = requireSessionUser(session);
     const account = this.accountService.get({ session, accountId });
     if (account.provider !== 'gmail') {
@@ -42,6 +65,13 @@ export class GmailAccountService {
         status: 400,
       });
     }
+
+    await this.accountService.requireCapabilities({
+      session,
+      accountId,
+      capabilities: requiredCapabilities,
+    });
+
     return Object.freeze({ userId, accountId: account.id, provider: account.provider });
   }
 }

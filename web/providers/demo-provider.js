@@ -123,13 +123,37 @@ export class DemoMailProvider {
 
   async capabilities() {
     return normalizeCapabilities({
+      mailboxAccess: true,
+      messageRead: true,
+      attachmentRetrieval: false,
       archive: true,
       drafts: true,
       flags: true,
       folders: true,
+      labels: false,
       search: true,
       send: true,
       threads: false,
+      move: true,
+      delete: true,
+      readState: false,
+      spam: false,
+      trashRecovery: false,
+      serverSideSearch: false,
+      incrementalSync: false,
+      pushSync: false,
+      storageQuota: false,
+      scheduledSend: false,
+      undoSend: false,
+      deliveryReceipts: false,
+      readReceipts: false,
+      senderIdentities: false,
+      aliases: false,
+      customDomains: false,
+      distributionLists: false,
+      providerRules: false,
+      retentionControls: false,
+      organizationPolicies: false,
     });
   }
 }
