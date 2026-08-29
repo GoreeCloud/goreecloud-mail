@@ -95,6 +95,16 @@ export class GmailApiClient {
     return Object.freeze(listing.messageRefs.map((ref) => Object.freeze({ ...ref })));
   }
 
+  async findDraftByRfcMessageId(context, { messageId } = {}) {
+    validateRfcMessageId(messageId);
+    const params = new URLSearchParams({
+      q: `rfc822msgid:${messageId}`,
+      maxResults: '2',
+    });
+    const listing = await this.#request(`/drafts?${params}`, context);
+    return Object.freeze((listing.drafts || []).map(normalizeDraftRef));
+  }
+
   async createDraft(context, { raw } = {}) {
     validateRawMessage(raw);
     const payload = await this.#request('/drafts', context, {
@@ -200,6 +210,16 @@ function normalizeDraft(payload = {}) {
   return Object.freeze({
     id: payload?.id ? String(payload.id) : null,
     message: normalizeWriteMessage(payload?.message || {}),
+  });
+}
+
+function normalizeDraftRef(payload = {}) {
+  return Object.freeze({
+    id: payload?.id ? String(payload.id) : null,
+    message: Object.freeze({
+      id: payload?.message?.id ? String(payload.message.id) : null,
+      threadId: payload?.message?.threadId ? String(payload.message.threadId) : null,
+    }),
   });
 }
 
