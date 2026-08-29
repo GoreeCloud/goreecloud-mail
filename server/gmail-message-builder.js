@@ -12,8 +12,8 @@ export function buildGmailRawMessage(input = {}) {
   const cc = normalizeAddressList(input.cc, { field: 'cc' });
   const bcc = normalizeAddressList(input.bcc, { field: 'bcc' });
   const subject = normalizeHeaderValue(input.subject ?? '', 'subject', GMAIL_MESSAGE_LIMITS.subjectChars);
-  const from = optionalHeaderValue(input.from, 'from');
-  const replyTo = optionalHeaderValue(input.replyTo, 'replyTo');
+  const from = optionalMailboxValue(input.from, 'from');
+  const replyTo = optionalMailboxValue(input.replyTo, 'replyTo');
   const inReplyTo = optionalHeaderValue(input.inReplyTo, 'inReplyTo');
   const references = optionalHeaderValue(input.references, 'references');
   const body = typeof input.body === 'string'
@@ -68,7 +68,7 @@ function normalizeAddressList(value, { required = false, field }) {
   for (const item of values) {
     if (typeof item !== 'string') invalid(`${field} recipients must be strings`);
     for (const part of item.split(',')) {
-      const address = normalizeHeaderValue(part.trim(), field, GMAIL_MESSAGE_LIMITS.headerValueChars);
+      const address = normalizeMailboxValue(part.trim(), field);
       if (address) result.push(address);
     }
   }
@@ -78,6 +78,20 @@ function normalizeAddressList(value, { required = false, field }) {
     invalid('The message has too many recipients.', 413);
   }
   return result;
+}
+
+function optionalMailboxValue(value, field) {
+  if (value == null || value === '') return null;
+  return normalizeMailboxValue(value, field);
+}
+
+function normalizeMailboxValue(value, field) {
+  const normalized = normalizeHeaderValue(value, field, GMAIL_MESSAGE_LIMITS.headerValueChars);
+  if (!normalized) return '';
+  if (!/^[^\s@<>,]+@[^\s@<>,]+$/.test(normalized)) {
+    invalid(`${field} must use a simple mailbox address`);
+  }
+  return normalized;
 }
 
 function optionalHeaderValue(value, field) {
