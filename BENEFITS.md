@@ -1,18 +1,24 @@
 # GoreeCloud Mail — Benefits
 
-This document describes intended benefits of the approved GoreeCloud Mail architecture. It does not claim that every target capability is already implemented or production-accepted.
+This document describes intended benefits of the approved GoreeCloud Mail client architecture. It does not claim that every target capability is already implemented or production-accepted.
 
 ## One coherent mail experience
 
-GoreeCloud Mail is designed to combine inbox management, composition, search, automation, secure mail, privacy controls, threat protection, continuity, and administration in one first-party experience rather than requiring unrelated extension layers for core product behavior.
+GoreeCloud Mail is designed to combine inbox management, composition, search, automation, secure mail, privacy controls, threat protection, continuity, and provider interoperability in one first-party GoreeCloud experience rather than requiring unrelated extension layers for core product behavior.
 
-## Choice of mail authority
+## Keep the provider, improve the experience
 
-The platform architecture supports two explicit operating modes: GoreeCloud-hosted service capabilities and compatible external-provider interoperability. This lets GoreeCloud own a complete first-party service path while preserving the ability to work with existing providers through normalized contracts.
+Users can continue using compatible external providers such as Gmail, Microsoft Outlook, Yahoo Mail, and other supported mail services while gaining GoreeCloud-native organization, privacy, security, productivity, continuity, and cross-application workflows.
+
+GoreeCloud does not need to become the user's email host to provide a deeply integrated GoreeCloud Mail experience.
 
 ## Provider independence
 
-Courier keeps provider-specific behavior behind shared contracts wherever practical. This reduces the risk that Gmail, IMAP/SMTP, or a future GoreeCloud-hosted transport becomes inseparable from the user experience or shared application model.
+Courier keeps provider-specific behavior behind shared contracts wherever practical. This reduces the risk that Gmail, Microsoft, Yahoo, IMAP/SMTP, or another provider becomes inseparable from the user experience or shared application model.
+
+## Lower infrastructure burden
+
+By remaining a client platform rather than operating an Internet mail provider, GoreeCloud avoids taking on the current maintenance, deliverability, reputation, abuse handling, mailbox-hosting, MX, and provider-support burden of a mail server while still investing in the parts of email experience it directly controls.
 
 ## Privacy by design
 
@@ -20,11 +26,11 @@ Privacy Shield is intended to govern consent, data minimization, tracking protec
 
 ## Evidence-backed security
 
-Wardveil Security provides the security authority for applicable phishing, suspicious links, attachments, authentication, trust, verification, and response workflows. Existing Wardveil Scan integration already demonstrates the design principle: Mail enforces authoritative current evidence in the trusted attachment-delivery path instead of merely displaying a warning badge.
+Wardveil Security provides the security authority for applicable phishing, suspicious links, attachments, authentication, trust, verification, and response workflows. Existing Wardveil Scan integration demonstrates the design principle: Mail enforces authoritative current evidence in the trusted attachment-delivery path instead of merely displaying a warning badge.
 
 ## Secure communication options
 
-The approved target includes interoperable OpenPGP/PGP-MIME and S/MIME capabilities as well as eligible client-side/end-to-end protected workflows. The architectural objective is to give users clear security states and standards interoperability while accurately documenting metadata and endpoint limitations.
+The approved target includes interoperable OpenPGP/PGP-MIME and S/MIME capabilities as well as eligible client-side/end-to-end protected workflows. The architectural objective is to give users clear security states and standards interoperability while accurately documenting metadata, provider, and endpoint limitations.
 
 ## Deep GoreeCloud workflows
 
@@ -36,15 +42,15 @@ Shared Mail state and GoreeCloud Sync integration are intended to support contin
 
 ## Resilience and portability
 
-Everkeep and GoreeCloud Backups are intended to provide explicit recovery, preservation, portability, succession, and continuity treatment for eligible Mail data and configuration. Provider independence and standards support further reduce dependence on one external mail ecosystem.
+Everkeep and GoreeCloud Backups are intended to provide explicit recovery, preservation, portability, succession, and continuity treatment for eligible GoreeCloud-owned Mail data and configuration. Provider independence and standards support further reduce dependence on one mail ecosystem.
 
-## Organization-ready controls
+## Organization-ready workflows
 
-Custom domains, aliases, distribution lists, retention, organization policy, security-event history, administrative controls, templates, and shared workflows are intended to support professional and organizational use without creating a separate unrelated Mail product.
+Provider-supported custom domains, aliases, distribution lists, retention, organization policy, security-event history, administrative controls, templates, and shared workflows can be surfaced through GoreeCloud Mail when the configured provider exposes the necessary capabilities.
 
 ## User-controlled automation
 
-Rules, plain-language automations, cleanup, unsubscribe, follow-up, triage, reminders, and reply queues are intended to reduce repetitive inbox work while keeping actions explainable, reversible where practical, and bounded by user or organization authority.
+Rules, plain-language automations, cleanup, unsubscribe, follow-up, triage, reminders, and reply queues are intended to reduce repetitive inbox work while keeping actions explainable, reversible where practical, and bounded by user, provider, or organization authority.
 
 ## Intelligent assistance inside the product boundary
 
