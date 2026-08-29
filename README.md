@@ -1,136 +1,103 @@
 # GoreeCloud Mail
 
-Privacy-first, secure first-party GoreeCloud email client and communication experience for web, Linux, Android, and iOS, with provider-independent access to compatible external mail services, Glaze UI, Wardveil Security, Privacy Shield, Everkeep, GoreeCloud Identity, and GoreeCloud Mesh integration.
+GoreeCloud Mail is GoreeCloud's privacy-first, first-party email client platform for web and planned native clients. It connects to compatible external mail providers through trusted GoreeCloud provider adapters; GoreeCloud does **not** currently operate mailbox hosting, MX infrastructure, or Internet mail-delivery infrastructure.
 
 ## Status
 
-**Active development. Production deployment is not approved.**
+**Active Development. Production deployment is not approved. Stable release is not approved.**
 
-GoreeCloud Mail is a **client platform**, not a GoreeCloud-operated email provider. Mailbox hosting and Internet mail transport remain the responsibility of configured external providers such as Gmail, Microsoft Outlook/Exchange-compatible services, Yahoo Mail, and other compatible providers exposed through provider APIs or standards such as IMAP and SMTP.
+External providers remain authoritative for mailbox hosting, mailbox contents, delivery state, quotas, provider-owned policy, and Internet mail transport except where they explicitly delegate an operation through an authorized API or protocol.
 
-There are **no current plans** for GoreeCloud Mail to operate mailbox hosting, MX infrastructure, inbound SMTP servers, outbound mail-delivery infrastructure, sender-reputation systems, or a GoreeCloud email-provider service. That boundary may be reconsidered only through a future explicit architecture decision.
-
-Self-hosted GoreeCloud Mail deployment refers to hosting the GoreeCloud Mail application and trusted backend, not hosting users' Internet email service.
-
-## Current implementation foundation
+## Current source foundation
 
 The repository currently includes:
 
-- Glaze UI responsive web shell and Mail reader foundation;
-- provider-independent `MailProvider` contract and same-origin provider gateway;
-- Gmail and standards-based IMAP/SMTP external-provider adapter foundations;
+- responsive Glaze UI web/client foundations;
+- provider-independent Mail contracts and same-origin provider gateway boundaries;
+- Gmail and standards-based IMAP/SMTP adapter foundations;
 - trusted session-derived GoreeCloud user identity and user-scoped provider-account handling;
-- OAuth state lifecycle, Gmail PKCE/OAuth construction, token refresh/revocation, and normalized provider errors;
-- bounded provider timeout, retry, backoff, and rate-limit handling;
-- durable SQLite application state for provider accounts, credential references, OAuth state, synchronization state, operation idempotency, and attachment metadata;
-- encrypted provider credential-vault foundation with AES-256-GCM and key rotation support;
-- schema migrations plus SQLite backup/integrity verification tooling;
-- fail-closed HTML message policy pending a maintained production sanitizer;
+- OAuth state, Gmail PKCE/OAuth construction, token refresh/revocation, capability resolution, and normalized provider errors;
+- bounded provider timeout/retry/backoff policy for replay-safe operations;
+- SQLite-backed provider-account, credential-reference, synchronization, operation, and attachment metadata foundations;
+- encrypted provider credential-vault source with AES-256-GCM and key-rotation support;
+- fail-closed HTML message policy pending production sanitizer acceptance;
 - Privacy Shield remote-content defaults;
-- attachment byte inspection, private object storage, ownership-bound delivery, expiry, and cleanup;
-- Wardveil Scan signed transport, exact content binding, fail-closed attachment-delivery enforcement, and minimized durable clean-scan provenance.
+- Wardveil-gated cached attachment delivery with exact-content binding and minimized clean-scan provenance;
+- Gmail mailbox/label/message read foundations;
+- bounded plain-text Gmail send, draft-create, and draft-update transport;
+- one-attempt Gmail writes so non-idempotent provider writes are not automatically replayed; and
+- **ambiguous Gmail send reconciliation** using a server-owned deterministic RFC Message-ID and bounded Sent-folder lookup. Confirmed matches return reconciled send metadata; unresolved outcomes fail closed as non-retryable `provider-write-outcome-unknown` rather than risking an automatic duplicate send.
 
-Synthetic provider tests prove important isolation, lifecycle, retry, synchronization, idempotency, content-boundary, encryption, persistence, migration, backup, recovery, and attachment semantics without representing a real mailbox as production-connected.
+Synthetic provider tests validate source contracts without representing a real mailbox as production-connected.
 
 ## Product role
 
-GoreeCloud Mail is GoreeCloud's first-party email client and communication platform experience. It owns the GoreeCloud interface, workflows, local/trusted-backend logic, privacy controls, security integration, synchronization behavior, intelligent assistance, and wider GoreeCloud interoperability while external providers remain authoritative for mailbox hosting and external mail transport.
+GoreeCloud Mail owns the GoreeCloud client experience, local/trusted-backend logic, privacy controls, security integration, synchronization behavior, intelligent-assistance boundaries, and wider GoreeCloud interoperability while compatible external providers remain the mail-service authority.
 
 **GoreeCloud Courier** is the unified first-party mail technology and feature framework powering GoreeCloud Mail. Courier is not a separate application, provider, or repository.
 
-## Capability target
+## Current write boundary
 
-The approved native built-in target includes:
+The Gmail composition foundation is intentionally bounded. It currently supports plain-text message construction with validated recipients and headers, optional trusted From/Reply-To fields where capabilities permit, and one-attempt Gmail API writes.
 
-- unified inbox, multiple accounts, conversation views, standard/custom mailboxes, bulk actions, pinning, muting, stars/flags, and preview-pane workflows;
-- labels, categories, priority/focused/split inboxes, VIPs, sender grouping, custom sections, and intelligent categorization;
-- advanced, saved, smart-folder, provider/server-assisted, and natural-language search;
-- rules, unsubscribe, automated cleanup, triage, sender classification, and plain-language automation;
-- snooze, reminders, follow-up, awaiting-reply, needs-reply, reply queues, inbox-zero, and unwanted-mail workflows;
-- rich/plain composition, attachments, aliases and sender identities where supported, signatures, templates, groups, snippets, and dynamic placeholders;
-- scheduled send, Undo Send, configurable send delay, delivery timing, and supported receipt/read-state capabilities;
-- spelling, grammar, predictive writing, drafting, rewriting, tone adjustment, summarization, and context-aware assistance;
-- intelligent digests, sender classification, meeting/calendar context, attachment filing, newsletter management, and mailbox/storage insights;
-- secure-mail targets including OpenPGP, PGP/MIME, S/MIME, digital signatures, client-side encryption, eligible end-to-end protected workflows, and protected local/cache storage only where the implemented architecture supports the claim;
-- Wardveil-backed phishing, suspicious-link, malicious-attachment, sender/authentication, spam, and account protection;
-- Privacy Shield tracking/IP/remote-content protections, protected-message controls, private/disposable aliases, and provider-supported custom-domain addresses;
-- organization policy, retention, administration, and distribution features where the configured provider and authorized GoreeCloud integration can support them;
-- deep first-party integration with GoreeCloud Sync, Drive, Location, Backups, Identity, Wardveil Security, Privacy Shield, Everkeep, Mesh, Contacts, Calendar, Tasks, Notes/Memos, Notify, Search, and future approved GoreeCloud services.
-
-See [FEATURES.md](FEATURES.md) for the capability inventory and state rules.
-
-## Provider architecture
-
-GoreeCloud Mail uses normalized provider contracts so Gmail-specific, Microsoft-specific, Yahoo-specific, IMAP-specific, SMTP-specific, or future provider-specific details do not dominate the shared product model.
-
-Browser clients communicate through trusted GoreeCloud service boundaries rather than receiving reusable provider credentials. Provider adapters expose only capabilities the configured provider actually supports. Unsupported actions must fail clearly rather than being simulated or falsely presented as available.
-
-External providers remain authoritative for mailbox contents, folders/labels, delivery state, account policy, mail transport, domain hosting, aliases, quotas, and provider-owned administration except where a provider explicitly delegates an operation through an authorized API or protocol.
-
-## Security and privacy boundaries
-
-Email content, HTML, links, attachments, provider responses, protocol data, sender metadata, and remote resources are untrusted input.
-
-Credentials, OAuth codes, refresh tokens, app passwords, cryptographic keys, session material, and other reusable secrets must never be committed to this repository or exposed in browser-visible responses. Cross-user and cross-account references must fail closed.
-
-Wardveil Security is the security authority for applicable Mail protection decisions. Privacy Shield governs privacy, consent, data minimization, user control, remote resources, tracking protection, intelligent-assistance context, and privacy-sensitive data flows. Everkeep governs continuity and preservation treatment. GoreeCloud Identity governs GoreeCloud identity/authentication/authorization boundaries. GoreeCloud Mesh governs authenticated policy-controlled cross-service coordination.
+Send reconciliation is implemented only for **send** when a stable client mutation identifier is supplied. Ambiguous draft create/update reconciliation, durable cross-process operation journals, real Gmail timing/search-consistency acceptance, rich MIME/outgoing attachments, production sender identities, offline replay UX, and production credential custody remain separate milestones.
 
 ## Wardveil attachment scanning
 
-GoreeCloud Mail's trusted attachment-delivery service requires Wardveil Scan before provider attachment bytes can become a downloadable cached object. Mail does not connect directly to ClamAV and does not reinterpret raw scanner output as an authoritative security verdict.
+GoreeCloud Mail's trusted cached attachment-delivery path requires Wardveil Scan before provider attachment bytes can become a downloadable cached object. Mail does not connect directly to ClamAV and does not reinterpret raw scanner output as an authoritative application verdict.
 
-Only a current authoritative clean result with exact resource, scope, correlation, evidence, validity, and SHA-256 content binding may proceed. Malicious, suspicious, unknown, unsupported, invalid, expired, or scanner-unavailable outcomes fail closed before downloadable storage. A malicious result may expose a bounded non-destructive quarantine-required state; Mail does not become the Wardveil Quarantine executor.
+Only current authoritative clean evidence with the required exact-resource, correlation, validity, evidence-reference, and SHA-256 content binding may proceed. Malicious, suspicious, unknown, unsupported, invalid, expired, changed-content, or scanner-unavailable outcomes fail closed before downloadable storage. A malicious outcome may expose a bounded quarantine-required state; Mail is not the Wardveil Quarantine executor and quarantine is not deletion.
 
-Current clean scan provenance may survive Mail service restart through a private minimized sidecar bound to the attachment object and digest. Missing, corrupt, tampered, expired, or mismatched provenance fails closed. This source-validated application state is not Wardveil Audit and is not production runtime acceptance.
+Minimized durable clean-scan provenance may survive service restart when it remains current and content-bound. Missing, corrupt, tampered, expired, or mismatched provenance fails closed. This remains source-validated application state rather than production Wardveil runtime acceptance or Wardveil Audit.
 
-## Planned clients
+## Security and privacy boundaries
+
+Mail content, HTML, links, attachments, provider responses, protocol data, sender metadata, and remote resources are untrusted input. Reusable provider credentials, refresh tokens, app passwords, cryptographic keys, session material, and other secrets must remain in trusted custody and must not be exposed through browser responses or committed to source.
+
+- **Wardveil Security / Security Center** governs applicable security decisions such as attachment security evidence.
+- **Privacy Shield / Privacy Center** governs privacy, consent, remote resources, tracking protection, data minimization, and user control.
+- **Everkeep / Continuity Center** governs accepted backup, recovery, preservation, portability, and continuity behavior.
+- **GoreeCloud Identity / Identity Center** governs GoreeCloud authentication and authorization boundaries.
+- **GoreeCloud Mesh / Mesh Center** governs authenticated, policy-controlled cross-service coordination.
+- **Glaze UI / Design Center** governs the approved interface/design-system contract for applicable clients.
+
+Passing source tests does not establish production acceptance for any of these systems.
+
+## Planned client surfaces
 
 - Web
 - Linux desktop
 - Android
 - iOS
 
-## Required platform systems
-
-Stable qualification requires current approved integration with:
-
-- Glaze UI / Design Center
-- Wardveil Security / Security Center
-- Privacy Shield / Privacy Center
-- Everkeep / Continuity Center
-- GoreeCloud Identity / Identity Center
-- GoreeCloud Mesh / Mesh Center
-
-Applicable Mail workflows also integrate with GoreeCloud Sync, Drive, Location, Backups, Contacts, Calendar, Tasks, Notes/Memos, Notify, Search, and other approved first-party services.
+Native packaging and representative-device acceptance remain incomplete unless a later release record explicitly states otherwise.
 
 ## Documentation
 
+- [USER-MANUAL.md](USER-MANUAL.md)
 - [SPECIFICATIONS.md](SPECIFICATIONS.md)
 - [FEATURES.md](FEATURES.md)
 - [BENEFITS.md](BENEFITS.md)
 - [COMPETITIVE-OBJECTIVES.md](COMPETITIVE-OBJECTIVES.md)
 - [docs/courier.md](docs/courier.md)
 - [docs/provider-backend-contract.md](docs/provider-backend-contract.md)
+- [docs/gmail-write-transport.md](docs/gmail-write-transport.md)
+- [docs/wardveil-attachment-scanning.md](docs/wardveil-attachment-scanning.md)
 - [docs/database-maintenance.md](docs/database-maintenance.md)
 - [docs/credential-vault.md](docs/credential-vault.md)
 
 ## Validation
 
-Run the source test suite with:
+Run the source suites with:
 
 ```bash
 npm test
-```
-
-Run trusted backend tests with:
-
-```bash
 npm run test:backend
 ```
 
-GitHub Actions runs repository tests and static secret-safety checks. Exact-head source validation is required after material security/backend milestones.
+GitHub Actions also runs repository validation and static safety checks. Material backend/security candidates require exact-head validation before merge.
 
-Passing source tests do not constitute production acceptance. Real-provider connectivity, target-host credential/key custody, production HTML sanitization, durable recovery, runtime hardening, native packaging, platform-system acceptance, and production-readiness validation remain separate requirements.
+Source validation is not production deployment, real-provider acceptance, signed release, or Stable qualification.
 
 ## License
 
