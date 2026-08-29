@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto';
+
+import { sanitizeMessageHtml } from './restrictive-html-sanitizer.js';
 import { ProviderError, PROVIDER_ERROR_CODES } from '../web/providers/provider-error.js';
 
 export const GMAIL_MESSAGE_LIMITS = Object.freeze({
@@ -5,6 +8,7 @@ export const GMAIL_MESSAGE_LIMITS = Object.freeze({
   headerValueChars: 4096,
   subjectChars: 998,
   bodyBytes: 1024 * 1024,
+  htmlBytes: 1024 * 1024,
 });
 
 export function buildGmailRawMessage(input = {}) {
@@ -22,15 +26,12 @@ export function buildGmailRawMessage(input = {}) {
     : typeof input.text === 'string'
       ? input.text
       : '';
+  const requestedHtml = input.html == null ? null : String(input.html);
 
-  const bodyBytes = Buffer.byteLength(body, 'utf8');
-  if (bodyBytes > GMAIL_MESSAGE_LIMITS.bodyBytes) {
-    throw new ProviderError('The message body exceeds the configured Gmail composition limit.', {
-      code: PROVIDER_ERROR_CODES.INVALID_REQUEST,
-      status: 413,
-    });
-  }
+  requireBodyLimit(body, GMAIL_MESSAGE_LIMITS.bodyBytes, 'message body');
+  if (requestedHtml !== null) requireBodyLimit(requestedHtml, GMAIL_MESSAGE_LIMITS.htmlBytes, 'HTML message body');
 
+  const sanitizedHtml = requestedHtml === null ? null : sanitizeMessageHtml(requestedHtml);
   const headers = [
     `To: ${to.join(', ')}`,
     ...(cc.length ? [`Cc: ${cc.join(', ')}`] : []),
@@ -42,18 +43,19 @@ export function buildGmailRawMessage(input = {}) {
     ...(references ? [`References: ${references}`] : []),
     `Subject: ${encodeUnstructuredHeader(subject)}`,
     'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=UTF-8',
-    'Content-Transfer-Encoding: 8bit',
   ];
 
-  const normalizedBody = body.replace(/\r?\n/g, '\r\n');
-  const rfcMessage = `${headers.join('\r\n')}\r\n\r\n${normalizedBody}`;
+  const content = sanitizedHtml === null
+    ? buildPlainTextContent(body)
+    : buildAlternativeContent({ text: body, html: sanitizedHtml });
+  const rfcMessage = `${headers.concat(content.headers).join('\r\n')}\r\n\r\n${content.body}`;
 
   return Object.freeze({
     raw: Buffer.from(rfcMessage, 'utf8').toString('base64url'),
     byteLength: Buffer.byteLength(rfcMessage, 'utf8'),
     recipientCount: to.length + cc.length + bcc.length,
     messageId,
+    contentType: sanitizedHtml === null ? 'text/plain' : 'multipart/alternative',
   });
 }
 
@@ -62,6 +64,59 @@ export function decodeGmailRawMessage(raw) {
     throw new TypeError('raw must be an unpadded base64url string');
   }
   return Buffer.from(raw, 'base64url').toString('utf8');
+}
+
+function buildPlainTextContent(body) {
+  return {
+    headers: [
+      'Content-Type: text/plain; charset=UTF-8',
+      'Content-Transfer-Encoding: 8bit',
+    ],
+    body: normalizeBody(body),
+  };
+}
+
+function buildAlternativeContent({ text, html }) {
+  const boundary = multipartBoundary(text, html);
+  const parts = [
+    `--${boundary}`,
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: 8bit',
+    '',
+    normalizeBody(text),
+    `--${boundary}`,
+    'Content-Type: text/html; charset=UTF-8',
+    'Content-Transfer-Encoding: 8bit',
+    '',
+    normalizeBody(html),
+    `--${boundary}--`,
+  ];
+  return {
+    headers: [`Content-Type: multipart/alternative; boundary="${boundary}"`],
+    body: parts.join('\r\n'),
+  };
+}
+
+function multipartBoundary(text, html) {
+  const digest = createHash('sha256')
+    .update(String(text), 'utf8')
+    .update('\0')
+    .update(String(html), 'utf8')
+    .digest('hex');
+  return `goreecloud-alt-${digest.slice(0, 32)}`;
+}
+
+function normalizeBody(value) {
+  return String(value).replace(/\r?\n/g, '\r\n');
+}
+
+function requireBodyLimit(value, maxBytes, label) {
+  if (Buffer.byteLength(value, 'utf8') > maxBytes) {
+    throw new ProviderError(`The ${label} exceeds the configured Gmail composition limit.`, {
+      code: PROVIDER_ERROR_CODES.INVALID_REQUEST,
+      status: 413,
+    });
+  }
 }
 
 function normalizeAddressList(value, { required = false, field }) {
