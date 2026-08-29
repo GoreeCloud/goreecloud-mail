@@ -6,13 +6,21 @@ import { MAIL_PROVIDER_CAPABILITY } from '../web/mail-provider.js';
 import { buildGmailRawMessage } from './gmail-message-builder.js';
 
 const MAX_CLIENT_MUTATION_ID_CHARS = 256;
+const WARDVEIL_SCAN_UNAVAILABLE = 'wardveil-scan-unavailable';
 
 export class GmailAccountService {
-  constructor({ accountService, gmailClientFactory }) {
+  constructor({ accountService, gmailClientFactory, outgoingAttachmentSecurityGate = null }) {
     if (!accountService) throw new TypeError('accountService is required');
     if (typeof gmailClientFactory !== 'function') throw new TypeError('gmailClientFactory is required');
+    if (
+      outgoingAttachmentSecurityGate !== null &&
+      typeof outgoingAttachmentSecurityGate?.authorize !== 'function'
+    ) {
+      throw new TypeError('outgoingAttachmentSecurityGate must expose authorize');
+    }
     this.accountService = accountService;
     this.gmailClientFactory = gmailClientFactory;
+    this.outgoingAttachmentSecurityGate = outgoingAttachmentSecurityGate;
   }
 
   async listLabels({ session, accountId }) {
@@ -65,12 +73,17 @@ export class GmailAccountService {
       message,
       capability: MAIL_PROVIDER_CAPABILITY.SEND,
     });
+    const authorizedMessage = await this.#authorizeOutgoingAttachments({
+      context,
+      message,
+      action: 'send',
+    });
     const reconciliationMessageId = deriveReconciliationMessageId({
       accountId: context.accountId,
-      clientMutationId: message?.clientMutationId,
+      clientMutationId: authorizedMessage?.clientMutationId,
     });
     const built = buildGmailRawMessage({
-      ...message,
+      ...authorizedMessage,
       ...(reconciliationMessageId ? { messageId: reconciliationMessageId } : {}),
     });
     const client = this.gmailClientFactory(context);
@@ -90,12 +103,17 @@ export class GmailAccountService {
       message,
       capability: MAIL_PROVIDER_CAPABILITY.DRAFTS,
     });
+    const authorizedMessage = await this.#authorizeOutgoingAttachments({
+      context,
+      message,
+      action: 'draft',
+    });
     const reconciliationMessageId = deriveReconciliationMessageId({
       accountId: context.accountId,
-      clientMutationId: message?.clientMutationId,
+      clientMutationId: authorizedMessage?.clientMutationId,
     });
     const built = buildGmailRawMessage({
-      ...message,
+      ...authorizedMessage,
       ...(reconciliationMessageId ? { messageId: reconciliationMessageId } : {}),
     });
     const client = this.gmailClientFactory(context);
@@ -120,12 +138,17 @@ export class GmailAccountService {
       message,
       capability: MAIL_PROVIDER_CAPABILITY.DRAFTS,
     });
+    const authorizedMessage = await this.#authorizeOutgoingAttachments({
+      context,
+      message,
+      action: 'draft',
+    });
     const reconciliationMessageId = deriveReconciliationMessageId({
       accountId: context.accountId,
-      clientMutationId: message?.clientMutationId,
+      clientMutationId: authorizedMessage?.clientMutationId,
     });
     const built = buildGmailRawMessage({
-      ...message,
+      ...authorizedMessage,
       ...(reconciliationMessageId ? { messageId: reconciliationMessageId } : {}),
     });
     const client = this.gmailClientFactory(context);
@@ -141,6 +164,31 @@ export class GmailAccountService {
         messageId: reconciliationMessageId,
       });
     }
+  }
+
+  async #authorizeOutgoingAttachments({ context, message, action }) {
+    const attachments = Array.isArray(message?.attachments) ? message.attachments : [];
+    if (attachments.length === 0) return message;
+    if (!this.outgoingAttachmentSecurityGate) {
+      throw new ProviderError('Wardveil Scan authorization is required before Gmail can write outgoing attachments.', {
+        code: WARDVEIL_SCAN_UNAVAILABLE,
+        status: 503,
+        retryable: true,
+      });
+    }
+    const authorized = await this.outgoingAttachmentSecurityGate.authorize({
+      accountId: context.accountId,
+      message,
+      action,
+    });
+    if (!authorized || !authorized.message) {
+      throw new ProviderError('Wardveil Scan did not return an authorized outgoing attachment message.', {
+        code: WARDVEIL_SCAN_UNAVAILABLE,
+        status: 503,
+        retryable: true,
+      });
+    }
+    return authorized.message;
   }
 
   async #reconcileAmbiguousSend({ client, context, messageId }) {
