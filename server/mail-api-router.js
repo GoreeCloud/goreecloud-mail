@@ -1,8 +1,15 @@
 import { AuthenticationRequiredError } from './session-context.js';
 import { ProviderAccountNotFoundError } from './provider-account-registry.js';
-import { ProviderError, publicProviderError } from '../web/providers/provider-error.js';
+import { ProviderError, PROVIDER_ERROR_CODES, publicProviderError } from '../web/providers/provider-error.js';
 
-export async function routeMailApi({ method, pathname, session, body = null, accountService }) {
+export async function routeMailApi({
+  method,
+  pathname,
+  session,
+  body = null,
+  accountService,
+  operationService = null,
+}) {
   if (!accountService) throw new TypeError('accountService is required');
 
   try {
@@ -29,6 +36,28 @@ export async function routeMailApi({ method, pathname, session, body = null, acc
       return response(200, await accountService.capabilities({ session, accountId }));
     }
 
+    const messagesMatch = pathname.match(/^\/api\/mail\/accounts\/([^/]+)\/messages$/);
+    if (messagesMatch && method === 'POST') {
+      const accountId = decodeURIComponent(messagesMatch[1]);
+      const service = requireOperationService(operationService);
+      return response(200, await service.send({ session, accountId, message: body ?? {} }));
+    }
+
+    const draftsMatch = pathname.match(/^\/api\/mail\/accounts\/([^/]+)\/drafts$/);
+    if (draftsMatch && method === 'POST') {
+      const accountId = decodeURIComponent(draftsMatch[1]);
+      const service = requireOperationService(operationService);
+      return response(201, await service.createDraft({ session, accountId, message: body ?? {} }));
+    }
+
+    const draftMatch = pathname.match(/^\/api\/mail\/accounts\/([^/]+)\/drafts\/([^/]+)$/);
+    if (draftMatch && method === 'PUT') {
+      const accountId = decodeURIComponent(draftMatch[1]);
+      const draftId = decodeURIComponent(draftMatch[2]);
+      const service = requireOperationService(operationService);
+      return response(200, await service.updateDraft({ session, accountId, draftId, message: body ?? {} }));
+    }
+
     const match = pathname.match(/^\/api\/mail\/accounts\/([^/]+)$/);
     if (match) {
       const accountId = decodeURIComponent(match[1]);
@@ -50,6 +79,14 @@ export async function routeMailApi({ method, pathname, session, body = null, acc
     }
     throw error;
   }
+}
+
+function requireOperationService(operationService) {
+  if (operationService) return operationService;
+  throw new ProviderError('Provider write operations are not configured.', {
+    code: PROVIDER_ERROR_CODES.UNSUPPORTED,
+    status: 501,
+  });
 }
 
 function response(status, body) {

@@ -21,27 +21,33 @@ test('Gmail granted scopes parse from token-response strings and stored arrays',
   );
 });
 
-test('gmail.modify enables only currently implemented read-side Gmail capabilities', () => {
+test('gmail.modify enables implemented read, draft, and send Gmail capabilities', () => {
   const capabilities = resolveGmailCapabilitiesFromScopes(GMAIL_OAUTH_SCOPE.MODIFY);
 
   assert.equal(capabilities.mailboxAccess, true);
   assert.equal(capabilities.messageRead, true);
   assert.equal(capabilities.attachmentRetrieval, true);
   assert.equal(capabilities.labels, true);
-  assert.equal(capabilities.send, false);
-  assert.equal(capabilities.drafts, false);
+  assert.equal(capabilities.send, true);
+  assert.equal(capabilities.drafts, true);
   assert.equal(capabilities.incrementalSync, false);
   assert.equal(capabilities.providerRules, false);
 });
 
-test('send and compose authorization do not imply unimplemented GoreeCloud transports', () => {
-  const capabilities = resolveGmailCapabilitiesFromScopes([
-    GMAIL_OAUTH_SCOPE.SEND,
-    GMAIL_OAUTH_SCOPE.COMPOSE,
-  ]);
+test('gmail.send enables sending but not draft management or mailbox reads', () => {
+  const capabilities = resolveGmailCapabilitiesFromScopes(GMAIL_OAUTH_SCOPE.SEND);
 
-  assert.equal(capabilities.send, false);
+  assert.equal(capabilities.send, true);
   assert.equal(capabilities.drafts, false);
+  assert.equal(capabilities.mailboxAccess, false);
+  assert.equal(capabilities.messageRead, false);
+});
+
+test('gmail.compose enables implemented drafts and sending without mailbox reads', () => {
+  const capabilities = resolveGmailCapabilitiesFromScopes(GMAIL_OAUTH_SCOPE.COMPOSE);
+
+  assert.equal(capabilities.send, true);
+  assert.equal(capabilities.drafts, true);
   assert.equal(capabilities.mailboxAccess, false);
   assert.equal(capabilities.messageRead, false);
 });
@@ -86,8 +92,11 @@ test('Gmail capability resolver uses the user/account scoped credential record',
   const bob = await resolver({ account: { id: 'account-b', provider: 'gmail' }, userId: 'user-b' });
 
   assert.equal(alice.messageRead, true);
-  assert.equal(alice.send, false);
+  assert.equal(alice.send, true);
+  assert.equal(alice.drafts, false);
   assert.equal(bob.messageRead, false);
+  assert.equal(bob.send, true);
+  assert.equal(bob.drafts, false);
 });
 
 test('provider dispatcher fails closed for providers without an implemented resolver', async () => {

@@ -36,27 +36,25 @@ export function parseGmailGrantedScopes(value) {
 }
 
 /**
- * Resolve the effective Gmail capabilities currently implemented by GoreeCloud
- * Mail and authorized by the granted account scopes.
- *
- * A granted OAuth scope is necessary but not sufficient for an operation. This
- * resolver deliberately keeps capabilities such as send, drafts, mutation,
- * incremental sync, rules, and sender identities false until the corresponding
- * trusted GoreeCloud provider transport exists and is separately wired.
+ * Resolve effective Gmail capabilities as the intersection of granted provider
+ * authorization and trusted GoreeCloud provider transport that actually exists.
  */
 export function resolveGmailCapabilitiesFromScopes(grantedScopes) {
   const scopes = parseGmailGrantedScopes(grantedScopes);
   const fullMail = scopes.has(GMAIL_OAUTH_SCOPE.FULL_MAIL);
-  const canReadMessages = fullMail
-    || scopes.has(GMAIL_OAUTH_SCOPE.MODIFY)
-    || scopes.has(GMAIL_OAUTH_SCOPE.READONLY);
+  const modify = scopes.has(GMAIL_OAUTH_SCOPE.MODIFY);
+  const canReadMessages = fullMail || modify || scopes.has(GMAIL_OAUTH_SCOPE.READONLY);
   const canReadLabels = canReadMessages || scopes.has(GMAIL_OAUTH_SCOPE.LABELS);
+  const canCompose = fullMail || modify || scopes.has(GMAIL_OAUTH_SCOPE.COMPOSE);
+  const canSend = canCompose || scopes.has(GMAIL_OAUTH_SCOPE.SEND);
 
   return normalizeCapabilities({
     mailboxAccess: canReadMessages,
     messageRead: canReadMessages,
     attachmentRetrieval: canReadMessages,
     labels: canReadLabels,
+    drafts: canCompose,
+    send: canSend,
   });
 }
 
