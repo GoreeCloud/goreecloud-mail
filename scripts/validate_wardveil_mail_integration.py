@@ -8,6 +8,8 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "contracts" / "wardveil.mail-attachment-scan.json"
 REFERENCE = ROOT / "reference" / "mail_attachment_security.py"
 CLIENT = ROOT / "server" / "wardveil-scan-client.js"
+DELIVERY = ROOT / "server" / "attachment-delivery-service.js"
+DELIVERY_TEST = ROOT / "tests" / "attachment-delivery-service.test.js"
 DOC = ROOT / "docs" / "wardveil-attachment-scanning.md"
 PLATFORM = ROOT / "docs" / "PLATFORM_CONFORMANCE.md"
 README = ROOT / "README.md"
@@ -19,17 +21,19 @@ def require(condition: bool, message: str) -> None:
 
 
 def main() -> None:
-    for path in (CONTRACT, REFERENCE, CLIENT, DOC, PLATFORM, README):
+    for path in (CONTRACT, REFERENCE, CLIENT, DELIVERY, DELIVERY_TEST, DOC, PLATFORM, README):
         require(path.is_file(), f"missing required file: {path.relative_to(ROOT)}")
 
     contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
     reference = REFERENCE.read_text(encoding="utf-8")
     client = CLIENT.read_text(encoding="utf-8")
+    delivery = DELIVERY.read_text(encoding="utf-8")
+    delivery_test = DELIVERY_TEST.read_text(encoding="utf-8")
     doc = DOC.read_text(encoding="utf-8").lower()
     platform = PLATFORM.read_text(encoding="utf-8").lower()
     readme = README.read_text(encoding="utf-8").lower()
 
-    require(contract.get("contract_version") == "0.2.0", "unexpected Mail integration contract version")
+    require(contract.get("contract_version") == "0.3.0", "unexpected Mail integration contract version")
     require(contract.get("consumer") == "GoreeCloud Mail", "unexpected consumer identity")
     require(contract.get("wardveil_runtime_contract_version") == "0.1.0", "unexpected Wardveil runtime contract")
     require(contract.get("resource_type") == "mail_attachment", "unexpected attachment resource type")
@@ -72,11 +76,36 @@ def main() -> None:
     }
     require(set(transport.get("signature_binds") or ()) == expected_signed_fields, "Wardveil signature binding set changed")
 
+    enforcement = contract.get("delivery_enforcement") or {}
+    for key in (
+        "wardveil_scan_client_required",
+        "provider_bytes_scanned_before_downloadable_storage",
+        "only_current_clean_result_may_create_downloadable_record",
+        "scanner_unavailable_fails_closed_before_storage",
+        "stored_sha256_must_equal_scan_digest",
+        "changed_during_scan_or_storage_fails_closed",
+        "download_rechecks_scan_validity",
+        "download_rechecks_stored_digest_binding",
+        "process_restart_without_current_scan_provenance_fails_closed",
+    ):
+        require(enforcement.get(key) is True, f"delivery enforcement missing fail-closed invariant: {key}")
+    for key in (
+        "malicious_content_stored_for_download",
+        "suspicious_content_stored_for_download",
+        "unknown_content_stored_for_download",
+        "unsupported_content_stored_for_download",
+        "durable_scan_provenance_persisted",
+        "automatic_rescan_after_restart_implemented",
+    ):
+        require(enforcement.get(key) is False, f"delivery enforcement acceptance boundary changed: {key}")
+    require(enforcement.get("scan_action") == "download", "Mail delivery scan action must be download")
+
     mapping = contract.get("result_mapping") or {}
     require(mapping.get("clean") == "allow_only_when_all_validation_passes", "clean mapping is not fail closed")
-    require(mapping.get("malicious") == "block_and_request_quarantine", "malicious mapping must request quarantine")
-    require(mapping.get("unknown") == "block_unverified", "unknown scan result must fail closed")
-    require(mapping.get("unsupported") == "block_unverified", "unsupported scan result must fail closed")
+    require(mapping.get("suspicious") == "hold_for_review_without_downloadable_cache", "suspicious mapping must hold without cache")
+    require(mapping.get("malicious") == "block_and_request_quarantine_without_downloadable_cache", "malicious mapping must block and request quarantine without cache")
+    require(mapping.get("unknown") == "block_unverified_without_downloadable_cache", "unknown scan result must fail closed without cache")
+    require(mapping.get("unsupported") == "block_unverified_without_downloadable_cache", "unsupported scan result must fail closed without cache")
 
     quarantine = contract.get("quarantine") or {}
     require(quarantine.get("requires_explicit_executor_authority") is True, "quarantine must require explicit authority")
@@ -121,6 +150,34 @@ def main() -> None:
     ):
         require(token in client, f"Mail Wardveil transport missing invariant: {token}")
 
+    for token in (
+        "wardveilScanClient with scanAttachment is required",
+        "await this.wardveilScanClient.scanAttachment",
+        "action: 'download'",
+        "requireCurrentCleanScan",
+        "stored.sha256 !== expectedDigest",
+        "stored.sha256 !== scan.digestSha256",
+        "SCAN_PROVENANCE_MISSING",
+        "this.scanProvenance.get(record.objectId)",
+        "requirePersistedCleanScan",
+        "this.scanProvenance.delete(record.objectId)",
+        "quarantineRequired",
+        "Object.hasOwn(record, 'scan_result')",
+    ):
+        require(token in delivery, f"attachment delivery missing Wardveil enforcement invariant: {token}")
+
+    for phrase in (
+        "malicious wardveil result blocks storage",
+        "suspicious, unknown, and unsupported wardveil results never create downloadable cache objects",
+        "scanner transport failure fails closed before storage",
+        "expired clean wardveil evidence fails closed before storage",
+        "scan digest mismatch fails closed before storage",
+        "content changed between scan and storage is rolled back",
+        "clean evidence expiry blocks a previously stored attachment",
+        "missing scan provenance fails closed",
+    ):
+        require(phrase in delivery_test.lower(), f"attachment-delivery tests missing case: {phrase}")
+
     for phrase in (
         "mail does not connect directly to clamav",
         "quarantine is not deletion",
@@ -130,6 +187,8 @@ def main() -> None:
         "everkeep integration",
         "hardened wardveil scan transport",
         "scan_record.result",
+        "attachment-delivery enforcement",
+        "missing scan provenance",
     ):
         require(phrase in doc, f"integration documentation missing boundary: {phrase}")
 
