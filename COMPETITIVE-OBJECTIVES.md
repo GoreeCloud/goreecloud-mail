@@ -2,13 +2,19 @@
 
 These are product-development objectives, not claims that GoreeCloud Mail currently outperforms another service. Public comparisons must be supported by current evidence.
 
-## Complete first-party capability
+## Build a complete first-party client experience
 
-Build GoreeCloud Mail into a complete native email and communication platform rather than limiting it to a thin client. The target includes hosted mail-service capability, rich clients, organization controls, privacy/security systems, automation, secure email, continuity, and deep GoreeCloud interoperability.
+Build GoreeCloud Mail into a complete native email and communication client rather than a thin generic inbox. The target includes advanced organization, productivity, privacy/security systems, intelligent assistance, secure email, continuity, cross-device behavior, and deep GoreeCloud interoperability while relying on compatible external providers for mailbox hosting and Internet mail transport.
 
-## Preserve interoperability while adding hosted service
+## Preserve provider choice
 
-Do not force users to choose between a GoreeCloud experience and compatible external providers. Maintain normalized Gmail and standards-based provider support while building GoreeCloud-hosted mail authority as a distinct first-party mode.
+Do not force users to abandon Gmail, Microsoft Outlook, Yahoo Mail, or another compatible provider to gain GoreeCloud features. Keep provider-specific implementations behind normalized contracts so GoreeCloud Mail can support multiple providers without redesigning the product core.
+
+## Avoid unnecessary provider operations
+
+Do not expand GoreeCloud Mail into mailbox hosting, MX operation, inbound SMTP, outbound Internet delivery, sender-reputation management, or provider-scale abuse/support infrastructure under the current roadmap. Focus engineering effort on the client experience and GoreeCloud-controlled capabilities.
+
+A future architecture decision may revisit this boundary, but no mail-server program should be inferred from current client development.
 
 ## Make privacy operational
 
@@ -20,7 +26,7 @@ Use Wardveil Security as the authoritative protection system for applicable thre
 
 ## Support strong interoperable secure mail
 
-Provide mature standards such as OpenPGP/PGP-MIME and S/MIME alongside GoreeCloud protected-message capabilities, with accurate key/certificate lifecycle, metadata disclosures, and clear interoperability boundaries.
+Provide mature standards such as OpenPGP/PGP-MIME and S/MIME alongside eligible GoreeCloud protected-message capabilities, with accurate key/certificate lifecycle, metadata disclosures, and clear provider/interoperability boundaries.
 
 ## Deliver advanced inbox productivity natively
 
@@ -28,7 +34,7 @@ Treat search, saved views, smart folders, rules, triage, reminders, follow-up, r
 
 ## Provide a strong organization path
 
-Support custom domains, aliases, distribution lists, policy, retention, administration, templates, security events, identity, and continuity under the same Mail architecture used for personal accounts.
+Surface provider-supported custom domains, aliases, distribution lists, policy, retention, administration, templates, security events, identity, and continuity through a consistent GoreeCloud Mail experience without requiring GoreeCloud to become the email host.
 
 ## Integrate without hidden coupling
 
@@ -38,13 +44,9 @@ Use GoreeCloud Mesh and documented contracts for cross-application workflows. Av
 
 Use Glaze UI and shared capability contracts to provide coherent web, Linux, Android, and iOS experiences while allowing platform-appropriate interaction patterns.
 
-## Own continuity and portability
+## Own continuity and portability where GoreeCloud has authority
 
-Use Everkeep, Backups, open standards, export/migration paths, and provider-independent internal contracts to make recovery and portability first-class architecture concerns.
-
-## Keep hosted-mail operations credible
-
-Do not label hosted service as production-ready until inbound/outbound transport, DNS, authentication, DKIM/SPF/DMARC alignment, queues, retries, bounces, spam/abuse controls, reputation, monitoring, backup/recovery, incident response, and deliverability operations are validated.
+Use Everkeep, Backups, open standards, export/migration paths, and provider-independent internal contracts to make recovery and portability first-class concerns for GoreeCloud-owned application state while accurately distinguishing provider-owned mailbox data.
 
 ## Keep claims synchronized with implementation
 
