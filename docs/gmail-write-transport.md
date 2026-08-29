@@ -63,6 +63,7 @@ Current controls include:
 - bounded UTF-8 body size;
 - RFC-style CRLF normalization;
 - UTF-8 encoded-word handling for non-ASCII subjects;
+- optional server-owned RFC-style `Message-ID` insertion for reconciliation-enabled sends;
 - MIME version, text/plain UTF-8 content type, and 8bit transfer encoding;
 - base64url conversion for Gmail `raw` transport.
 
@@ -76,17 +77,26 @@ If a caller requests an explicit From identity, `GmailAccountService` additional
 
 Production sender-identity work must bind available From identities to provider-confirmed account/send-as state rather than to browser claims.
 
-## Replay Safety
+## Replay Safety and Send Reconciliation
 
 Read operations may use the existing bounded provider retry policy.
 
-Gmail send, draft create, and draft update are treated as non-replay-safe writes. The Gmail client forces `maxAttempts: 1` even when the surrounding provider request policy is configured for multiple attempts. This avoids automatically repeating a write after an ambiguous timeout, rate-limit, or upstream failure.
+Gmail send, draft create, and draft update remain non-replay-safe writes. The Gmail client forces `maxAttempts: 1` even when the surrounding provider request policy is configured for multiple attempts. This prevents automatic duplicate writes after an ambiguous timeout, rate-limit, or upstream failure.
 
-This does not solve write reconciliation. A later milestone must define idempotency/reconciliation behavior for ambiguous send outcomes and offline replay before those workflows are production-accepted.
+For **send** only, callers may provide a stable `clientMutationId`. Trusted server code combines that opaque value with the owned account ID, hashes the combination with SHA-256, and emits a deterministic `Message-ID` under the reserved non-routable `mail.goreecloud.invalid` domain. The raw client mutation value and account ID are not embedded into the outgoing header.
+
+If Gmail returns an ambiguous temporary/rate-limit/unknown provider failure after the one allowed send attempt, GoreeCloud Mail does **not** replay the send. It performs a bounded Gmail search for `in:sent rfc822msgid:<generated-id>`:
+
+- exactly one matching sent message confirms the provider write and returns bounded normalized message metadata with `reconciled: true`;
+- zero matches, multiple matches, or a reconciliation-read failure produce `provider-write-outcome-unknown`;
+- that outcome is explicitly non-retryable so generic callers do not automatically submit a possibly duplicated message;
+- deterministic request failures such as authorization denial do not invoke reconciliation.
+
+This is a source-level send reconciliation foundation, not proof of Gmail search-consistency behavior under real production timing. Draft create/update reconciliation, offline replay queues, durable cross-process operation journals, and production recovery UX remain separate milestones.
 
 ## Current Acceptance Boundary
 
-This milestone is source-development work using injected/synthetic Gmail responses. It does not establish:
+This milestone remains source-development work using injected/synthetic Gmail responses. It does not establish:
 
 - a real Google account authorization;
 - a real send or draft against Gmail;
@@ -94,7 +104,9 @@ This milestone is source-development work using injected/synthetic Gmail respons
 - production credential-key custody;
 - sender-identity/send-as acceptance;
 - rich MIME or outgoing attachment support;
-- write idempotency/reconciliation acceptance;
+- real-provider timing/consistency acceptance for send reconciliation;
+- draft create/update ambiguous-write reconciliation;
+- durable offline/cross-process operation-journal acceptance;
 - production observability or rate-limit behavior;
 - production deployment.
 
