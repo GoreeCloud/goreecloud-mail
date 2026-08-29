@@ -34,7 +34,11 @@ This is Development source behavior. Real Gmail timing/search-consistency accept
 
 ## Drafts
 
-The current Gmail source supports bounded plain-text draft creation and replacement. Draft create/update writes remain one-attempt operations. Ambiguous draft-write reconciliation is not yet complete, so the application must not imply that a failed response proves the provider did not create or update a draft.
+The current Gmail source supports bounded plain-text draft creation and replacement. Draft create/update writes remain one-attempt operations and are not automatically replayed.
+
+When a stable client mutation identifier is supplied, GoreeCloud Mail inserts a server-generated deterministic RFC Message-ID into the draft message before the write. If Gmail returns an ambiguous temporary failure, the application performs a bounded draft lookup for that Message-ID. A unique match can confirm draft creation. For a draft replacement, the unique match must also have the exact provider draft ID being updated. Otherwise the result fails closed as non-retryable provider-write-outcome-unknown.
+
+This reconciliation reduces duplicate-write risk but does not establish production Gmail timing or search-consistency acceptance. A failed or outcome-unknown response must not be interpreted as proof that Gmail did not create or update the draft.
 
 ## Sender identities and rich composition
 
@@ -52,6 +56,6 @@ Arbitrary caller-provided From identities fail closed unless a provider-confirme
 
 ## Current limitations
 
-The Development repository does not establish production provider connectivity, production OAuth consent/verification, complete sender identities, rich composer parity, durable offline operation journals, production HTML sanitization, complete native Android/iOS/Linux packaging, signed release distribution, or Stable qualification.
+The Development repository does not establish production provider connectivity, production OAuth consent/verification, complete sender identities, rich composer parity, durable offline/cross-process operation journals, real-provider write-reconciliation timing acceptance, production HTML sanitization, complete native Android/iOS/Linux packaging, signed release distribution, or Stable qualification.
 
 Refer to `README.md`, `SPECIFICATIONS.md`, `FEATURES.md`, and the `docs/` directory for implementation and acceptance details.
