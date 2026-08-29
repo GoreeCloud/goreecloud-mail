@@ -55,20 +55,22 @@ export class GmailAccountService {
   }
 
   async send({ session, accountId, message }) {
-    const context = await this.#context({
+    const context = await this.#writeContext({
       session,
       accountId,
-      requiredCapabilities: [MAIL_PROVIDER_CAPABILITY.SEND],
+      message,
+      capability: MAIL_PROVIDER_CAPABILITY.SEND,
     });
     const built = buildGmailRawMessage(message);
     return this.gmailClientFactory(context).sendMessage(context, { raw: built.raw });
   }
 
   async createDraft({ session, accountId, message }) {
-    const context = await this.#context({
+    const context = await this.#writeContext({
       session,
       accountId,
-      requiredCapabilities: [MAIL_PROVIDER_CAPABILITY.DRAFTS],
+      message,
+      capability: MAIL_PROVIDER_CAPABILITY.DRAFTS,
     });
     const built = buildGmailRawMessage(message);
     return this.gmailClientFactory(context).createDraft(context, { raw: built.raw });
@@ -76,13 +78,20 @@ export class GmailAccountService {
 
   async updateDraft({ session, accountId, draftId, message }) {
     if (!draftId) throw new TypeError('draftId is required');
-    const context = await this.#context({
+    const context = await this.#writeContext({
       session,
       accountId,
-      requiredCapabilities: [MAIL_PROVIDER_CAPABILITY.DRAFTS],
+      message,
+      capability: MAIL_PROVIDER_CAPABILITY.DRAFTS,
     });
     const built = buildGmailRawMessage(message);
     return this.gmailClientFactory(context).updateDraft(context, { draftId, raw: built.raw });
+  }
+
+  async #writeContext({ session, accountId, message, capability }) {
+    const requiredCapabilities = [capability];
+    if (message?.from) requiredCapabilities.push(MAIL_PROVIDER_CAPABILITY.SENDER_IDENTITIES);
+    return this.#context({ session, accountId, requiredCapabilities });
   }
 
   async #context({ session, accountId, requiredCapabilities }) {
