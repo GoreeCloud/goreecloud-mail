@@ -22,9 +22,12 @@ The repository currently includes:
 - encrypted provider credential-vault source with AES-256-GCM and key-rotation support;
 - fail-closed HTML message policy pending production sanitizer acceptance;
 - Privacy Shield remote-content defaults;
-- Wardveil-gated cached attachment delivery with exact-content binding and minimized clean-scan provenance;
+- Wardveil-gated cached incoming attachment delivery with exact-content binding and minimized clean-scan provenance;
 - Gmail mailbox/label/message read foundations;
-- bounded plain-text Gmail send, draft-create, and draft-update transport;
+- bounded plain-text and sanitized rich Gmail composition with attachment-capable send, draft-create, and draft-update transport;
+- fail-closed outgoing Wardveil attachment authorization using the exact validated bytes that are serialized into provider MIME;
+- durable minimized outgoing clean-scan provenance that must persist before an attachment-bearing Gmail provider client is created;
+- a bounded browser `File`-to-compose attachment materializer for future authenticated gateway activation, intentionally not connected to the demo sender;
 - one-attempt Gmail writes so non-idempotent provider writes are not automatically replayed; and
 - **ambiguous Gmail send and draft-write reconciliation** using a server-owned deterministic RFC Message-ID and bounded provider lookup. Confirmed matches return reconciled metadata; unresolved outcomes fail closed as non-retryable `provider-write-outcome-unknown` rather than risking an automatic duplicate send or draft write.
 
@@ -38,19 +41,21 @@ GoreeCloud Mail owns the GoreeCloud client experience, local/trusted-backend log
 
 ## Current write boundary
 
-The Gmail composition foundation is intentionally bounded. It currently supports plain-text message construction with validated recipients and headers, optional trusted From/Reply-To fields where capabilities permit, and one-attempt Gmail API writes.
+The Gmail composition foundation supports bounded plain text, sanitized HTML alternatives, validated recipients and headers, optional trusted From/Reply-To fields where capabilities permit, and bounded attachments. Attachment-bearing Gmail sends and draft writes cannot create the provider client until the trusted server has validated the complete message, scanned the exact attachment bytes through Wardveil, accepted current authoritative clean evidence, and durably persisted minimized outgoing scan provenance.
 
 When a stable client mutation identifier is supplied, send and draft create/update operations use a server-owned deterministic RFC Message-ID for post-failure reconciliation. Ambiguous send is checked against the Sent mailbox. Ambiguous draft create/update is checked against a bounded Gmail draft search, and an update is accepted only when the unique matching provider draft is the exact draft ID being replaced. No ambiguous write is automatically replayed.
 
-Durable cross-process operation journals, real Gmail timing/search-consistency acceptance, rich MIME/outgoing attachments, production sender identities, offline replay UX, and production credential custody remain separate milestones.
+The browser-side compose attachment materializer mirrors the current server count/size/filename/media-type bounds and preserves selected bytes in the server-compatible base64 message shape. These checks are an early usability boundary, not security authority. The Development web shell remains demo-provider-backed, and attachment selection is deliberately not wired into that demo sender because doing so would create a visible path that bypasses the trusted Wardveil-gated provider write.
+
+Authenticated end-to-end provider UI activation, real Gmail attachment interoperability, production sender identities, production OAuth/credential custody, production Wardveil service acceptance, quarantine execution, offline replay UX, and release acceptance remain separate milestones.
 
 ## Wardveil attachment scanning
 
-GoreeCloud Mail's trusted cached attachment-delivery path requires Wardveil Scan before provider attachment bytes can become a downloadable cached object. Mail does not connect directly to ClamAV and does not reinterpret raw scanner output as an authoritative application verdict.
+GoreeCloud Mail's trusted cached incoming attachment-delivery path requires Wardveil Scan before provider attachment bytes can become a downloadable cached object. Mail does not connect directly to ClamAV and does not reinterpret raw scanner output as an authoritative application verdict.
 
-Only current authoritative clean evidence with the required exact-resource, correlation, validity, evidence-reference, and SHA-256 content binding may proceed. Malicious, suspicious, unknown, unsupported, invalid, expired, changed-content, or scanner-unavailable outcomes fail closed before downloadable storage. A malicious outcome may expose a bounded quarantine-required state; Mail is not the Wardveil Quarantine executor and quarantine is not deletion.
+Only current authoritative clean evidence with the required exact-resource, correlation, validity, evidence-reference, and SHA-256 content binding may proceed. Malicious, suspicious, unknown, unsupported, invalid, expired, changed-content, or scanner-unavailable outcomes fail closed before downloadable storage or an attachment-bearing Gmail provider write. A malicious outcome may expose a bounded quarantine-required state; Mail is not the Wardveil Quarantine executor and quarantine is not deletion.
 
-Minimized durable clean-scan provenance may survive service restart when it remains current and content-bound. Missing, corrupt, tampered, expired, or mismatched provenance fails closed. This remains source-validated application state rather than production Wardveil runtime acceptance or Wardveil Audit.
+Minimized durable clean-scan provenance exists for both the incoming cache boundary and outgoing Gmail attachment writes. Missing, corrupt, tampered, expired, mismatched, or nonpersistable required provenance fails closed. Application provenance is not Wardveil Audit, and source validation is not production Wardveil runtime acceptance.
 
 ## Security and privacy boundaries
 
@@ -85,6 +90,8 @@ Native packaging and representative-device acceptance remain incomplete unless a
 - [docs/provider-backend-contract.md](docs/provider-backend-contract.md)
 - [docs/gmail-write-transport.md](docs/gmail-write-transport.md)
 - [docs/wardveil-attachment-scanning.md](docs/wardveil-attachment-scanning.md)
+- [docs/outgoing-attachment-wardveil-gate.md](docs/outgoing-attachment-wardveil-gate.md)
+- [docs/browser-compose-attachment-materialization.md](docs/browser-compose-attachment-materialization.md)
 - [docs/database-maintenance.md](docs/database-maintenance.md)
 - [docs/credential-vault.md](docs/credential-vault.md)
 
