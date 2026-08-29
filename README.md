@@ -4,7 +4,7 @@ GoreeCloud Mail is GoreeCloud's privacy-first, first-party email client platform
 
 ## Status
 
-**Active Development — production deployment and Stable release are not approved.**
+**Active Development. Production deployment is not approved. Stable release is not approved.**
 
 External providers remain authoritative for mailbox hosting, mailbox contents, delivery state, quotas, provider-owned policy, and Internet mail transport except where they explicitly delegate an operation through an authorized API or protocol.
 
@@ -42,6 +42,14 @@ The Gmail composition foundation is intentionally bounded. It currently supports
 
 Send reconciliation is implemented only for **send** when a stable client mutation identifier is supplied. Ambiguous draft create/update reconciliation, durable cross-process operation journals, real Gmail timing/search-consistency acceptance, rich MIME/outgoing attachments, production sender identities, offline replay UX, and production credential custody remain separate milestones.
 
+## Wardveil attachment scanning
+
+GoreeCloud Mail's trusted cached attachment-delivery path requires Wardveil Scan before provider attachment bytes can become a downloadable cached object. Mail does not connect directly to ClamAV and does not reinterpret raw scanner output as an authoritative application verdict.
+
+Only current authoritative clean evidence with the required exact-resource, correlation, validity, evidence-reference, and SHA-256 content binding may proceed. Malicious, suspicious, unknown, unsupported, invalid, expired, changed-content, or scanner-unavailable outcomes fail closed before downloadable storage. A malicious outcome may expose a bounded quarantine-required state; Mail is not the Wardveil Quarantine executor and quarantine is not deletion.
+
+Minimized durable clean-scan provenance may survive service restart when it remains current and content-bound. Missing, corrupt, tampered, expired, or mismatched provenance fails closed. This remains source-validated application state rather than production Wardveil runtime acceptance or Wardveil Audit.
+
 ## Security and privacy boundaries
 
 Mail content, HTML, links, attachments, provider responses, protocol data, sender metadata, and remote resources are untrusted input. Reusable provider credentials, refresh tokens, app passwords, cryptographic keys, session material, and other secrets must remain in trusted custody and must not be exposed through browser responses or committed to source.
@@ -74,6 +82,7 @@ Native packaging and representative-device acceptance remain incomplete unless a
 - [docs/courier.md](docs/courier.md)
 - [docs/provider-backend-contract.md](docs/provider-backend-contract.md)
 - [docs/gmail-write-transport.md](docs/gmail-write-transport.md)
+- [docs/wardveil-attachment-scanning.md](docs/wardveil-attachment-scanning.md)
 - [docs/database-maintenance.md](docs/database-maintenance.md)
 - [docs/credential-vault.md](docs/credential-vault.md)
 
