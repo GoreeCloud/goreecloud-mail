@@ -5,9 +5,22 @@ import { InMemoryProviderAccountRegistry } from '../server/provider-account-regi
 import { ProviderAccountService } from '../server/provider-account-service.js';
 import { GmailAccountService } from '../server/gmail-account-service.js';
 
-function build() {
+function build({ capabilityResolver } = {}) {
   const registry = new InMemoryProviderAccountRegistry();
-  const accountService = new ProviderAccountService({ registry });
+  const accountService = new ProviderAccountService({
+    registry,
+    capabilityResolver:
+      capabilityResolver ??
+      (async ({ account }) =>
+        account.provider === 'gmail'
+          ? {
+              mailboxAccess: true,
+              messageRead: true,
+              attachmentRetrieval: true,
+              labels: true,
+            }
+          : {}),
+  });
   const calls = [];
   const gmail = new GmailAccountService({
     accountService,
@@ -65,12 +78,53 @@ test('cross-user Gmail attachment access fails before provider retrieval', async
   assert.equal(calls.length, 0);
 });
 
-test('non-Gmail accounts cannot cross into Gmail transport', async () => {
-  const { accountService, gmail, calls } = build();
+test('non-Gmail accounts cannot cross into Gmail transport before capability resolution', async () => {
+  let resolverCalls = 0;
+  const { accountService, gmail, calls } = build({
+    capabilityResolver: async () => {
+      resolverCalls += 1;
+      return { mailboxAccess: true, labels: true };
+    },
+  });
   const account = accountService.create({ session: { userId: 'user-a' }, provider: 'imap-smtp' });
   await assert.rejects(
     gmail.listLabels({ session: { userId: 'user-a' }, accountId: account.id }),
     (error) => error.code === 'unsupported-operation' && error.status === 400,
   );
+  assert.equal(calls.length, 0);
+  assert.equal(resolverCalls, 0);
+});
+
+test('Gmail transport does not run when the trusted account lacks the required capability', async () => {
+  const { accountService, gmail, calls } = build({
+    capabilityResolver: async ({ account }) =>
+      account.provider === 'gmail'
+        ? { mailboxAccess: true, labels: false, messageRead: true, attachmentRetrieval: false }
+        : {},
+  });
+  const account = accountService.create({ session: { userId: 'user-a' }, provider: 'gmail' });
+
+  await assert.rejects(
+    gmail.listLabels({ session: { userId: 'user-a' }, accountId: account.id }),
+    (error) =>
+      error.code === 'provider-capability-unavailable' &&
+      error.status === 400 &&
+      error.accountId === account.id &&
+      error.capability === 'labels',
+  );
+  await assert.rejects(
+    gmail.getAttachment({
+      session: { userId: 'user-a' },
+      accountId: account.id,
+      messageId: 'm1',
+      attachmentId: 'att1',
+      maxBytes: 1024,
+    }),
+    (error) =>
+      error.code === 'provider-capability-unavailable' &&
+      error.accountId === account.id &&
+      error.capability === 'attachmentRetrieval',
+  );
+
   assert.equal(calls.length, 0);
 });

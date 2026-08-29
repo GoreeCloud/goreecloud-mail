@@ -23,6 +23,12 @@ export async function routeMailApi({ method, pathname, session, body = null, acc
       return response(201, { account });
     }
 
+    const capabilitiesMatch = pathname.match(/^\/api\/mail\/accounts\/([^/]+)\/capabilities$/);
+    if (capabilitiesMatch && method === 'GET') {
+      const accountId = decodeURIComponent(capabilitiesMatch[1]);
+      return response(200, await accountService.capabilities({ session, accountId }));
+    }
+
     const match = pathname.match(/^\/api\/mail\/accounts\/([^/]+)$/);
     if (match) {
       const accountId = decodeURIComponent(match[1]);
