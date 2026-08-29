@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { access, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { access, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -9,6 +9,7 @@ import {
   ATTACHMENT_SECURITY_CODES,
   AttachmentDeliveryService,
 } from '../server/attachment-delivery-service.js';
+import { wardveilScanProvenancePath } from '../server/attachment-scan-provenance-store.js';
 
 const TEST_NOW = Date.parse('2026-08-29T11:00:00.000Z');
 
@@ -165,6 +166,7 @@ test('retrieval scans exact provider bytes before storing and binds clean eviden
     assert.match(download.headers['Content-Disposition'], /^attachment;/);
     assert.equal(download.headers['X-Content-Type-Options'], 'nosniff');
     assert.ok(download.path.startsWith(rootDir));
+    await access(wardveilScanProvenancePath({ rootDir, objectId: result.objectId }));
   });
 });
 
@@ -308,13 +310,14 @@ test('knowing another user attachment object id does not authorize delivery', as
   });
 });
 
-test('removal is ownership-scoped and invalidates later download authorization', async () => {
+test('removal is ownership-scoped and removes content plus durable Wardveil provenance', async () => {
   await withTempDir(async (rootDir) => {
     const service = buildService({ rootDir });
     const stored = await service.retrieveGmailAttachment({
       session: { userId: 'user-a' }, accountId: 'account-a', messageId: 'message-1', attachmentId: 'attachment-1',
       metadata: { filename: 'invoice.pdf', mimeType: 'application/pdf' }, now: TEST_NOW,
     });
+    const provenancePath = wardveilScanProvenancePath({ rootDir, objectId: stored.objectId });
 
     await assert.rejects(
       () => service.remove({ session: { userId: 'user-b' }, objectId: stored.objectId }),
@@ -325,10 +328,39 @@ test('removal is ownership-scoped and invalidates later download authorization',
       () => service.authorizeDownload({ session: { userId: 'user-a' }, objectId: stored.objectId, now: TEST_NOW }),
       (error) => error.code === 'not-found' && error.status === 404,
     );
+    await assert.rejects(() => access(provenancePath));
   });
 });
 
-test('durable metadata survives service recreation but missing scan provenance fails closed', async () => {
+test('durable Wardveil scan provenance survives service recreation without a rescan', async () => {
+  await withTempDir(async (rootDir) => {
+    const stateStore = buildDurableState();
+    const initialScanCalls = [];
+    let service = buildService({ rootDir, stateStore, scanCalls: initialScanCalls });
+    const stored = await service.retrieveGmailAttachment({
+      session: { userId: 'user-a' }, accountId: 'account-a', messageId: 'message-1', attachmentId: 'attachment-1',
+      metadata: { filename: 'invoice.pdf', mimeType: 'application/pdf' }, now: TEST_NOW, ttlMs: 60_000,
+    });
+
+    assert.equal(initialScanCalls.length, 1);
+    const beforeRestart = service.authorizeDownload({
+      session: { userId: 'user-a' }, objectId: stored.objectId, now: TEST_NOW + 20_000,
+    });
+    assert.equal(beforeRestart.wardveil.scanRecordId, 'scan-clean-1');
+
+    const restartScanCalls = [];
+    service = buildService({ rootDir, stateStore, scanCalls: restartScanCalls });
+    const afterRestart = service.authorizeDownload({
+      session: { userId: 'user-a' }, objectId: stored.objectId, now: TEST_NOW + 30_000,
+    });
+    assert.equal(afterRestart.objectId, stored.objectId);
+    assert.equal(afterRestart.wardveil.scanRecordId, 'scan-clean-1');
+    assert.equal(restartScanCalls.length, 0);
+    assert.equal(stateStore.records.get(stored.objectId).lastAccessedAt, '2026-08-29T11:00:30.000Z');
+  });
+});
+
+test('missing durable scan provenance after restart fails closed', async () => {
   await withTempDir(async (rootDir) => {
     const stateStore = buildDurableState();
     let service = buildService({ rootDir, stateStore });
@@ -336,23 +368,33 @@ test('durable metadata survives service recreation but missing scan provenance f
       session: { userId: 'user-a' }, accountId: 'account-a', messageId: 'message-1', attachmentId: 'attachment-1',
       metadata: { filename: 'invoice.pdf', mimeType: 'application/pdf' }, now: TEST_NOW, ttlMs: 60_000,
     });
-
-    assert.equal(stateStore.records.get(stored.objectId).path, undefined);
-    const beforeRestart = service.authorizeDownload({
-      session: { userId: 'user-a' }, objectId: stored.objectId, now: TEST_NOW + 30_000,
-    });
-    assert.equal(beforeRestart.objectId, stored.objectId);
-    assert.equal(stateStore.records.get(stored.objectId).lastAccessedAt, '2026-08-29T11:00:30.000Z');
-
+    await rm(wardveilScanProvenancePath({ rootDir, objectId: stored.objectId }), { force: true });
     service = buildService({ rootDir, stateStore });
     assert.throws(
-      () => service.authorizeDownload({ session: { userId: 'user-a' }, objectId: stored.objectId, now: TEST_NOW + 31_000 }),
+      () => service.authorizeDownload({ session: { userId: 'user-a' }, objectId: stored.objectId, now: TEST_NOW + 30_000 }),
       (error) => error.code === ATTACHMENT_SECURITY_CODES.SCAN_PROVENANCE_MISSING,
     );
   });
 });
 
-test('expired durable attachments fail closed and cleanup removes bytes with metadata', async () => {
+test('tampered durable scan provenance after restart fails closed', async () => {
+  await withTempDir(async (rootDir) => {
+    const stateStore = buildDurableState();
+    let service = buildService({ rootDir, stateStore });
+    const stored = await service.retrieveGmailAttachment({
+      session: { userId: 'user-a' }, accountId: 'account-a', messageId: 'message-1', attachmentId: 'attachment-1',
+      metadata: { filename: 'invoice.pdf', mimeType: 'application/pdf' }, now: TEST_NOW, ttlMs: 60_000,
+    });
+    await writeFile(wardveilScanProvenancePath({ rootDir, objectId: stored.objectId }), '{}\n', { mode: 0o600 });
+    service = buildService({ rootDir, stateStore });
+    assert.throws(
+      () => service.authorizeDownload({ session: { userId: 'user-a' }, objectId: stored.objectId, now: TEST_NOW + 30_000 }),
+      (error) => error.code === ATTACHMENT_SECURITY_CODES.SCAN_INVALID,
+    );
+  });
+});
+
+test('expired durable attachments fail closed and cleanup removes bytes plus provenance with metadata', async () => {
   await withTempDir(async (rootDir) => {
     const stateStore = buildDurableState();
     const service = buildService({ rootDir, stateStore });
@@ -360,6 +402,7 @@ test('expired durable attachments fail closed and cleanup removes bytes with met
       session: { userId: 'user-a' }, accountId: 'account-a', messageId: 'message-1', attachmentId: 'attachment-1',
       metadata: { filename: 'invoice.pdf', mimeType: 'application/pdf' }, now: TEST_NOW, ttlMs: 1_000,
     });
+    const provenancePath = wardveilScanProvenancePath({ rootDir, objectId: stored.objectId });
 
     assert.throws(
       () => service.authorizeDownload({ session: { userId: 'user-a' }, objectId: stored.objectId, now: TEST_NOW + 2_000 }),
@@ -370,10 +413,11 @@ test('expired durable attachments fail closed and cleanup removes bytes with met
     assert.deepEqual(cleanup, { removed: 1, remaining: 0 });
     assert.equal(stateStore.records.has(stored.objectId), false);
     await assert.rejects(() => access(path.join(rootDir, stored.objectId)));
+    await assert.rejects(() => access(provenancePath));
   });
 });
 
-test('durable metadata failure rolls back newly stored attachment bytes and scan provenance', async () => {
+test('durable metadata failure rolls back attachment bytes and durable scan provenance', async () => {
   await withTempDir(async (rootDir) => {
     const stateStore = buildDurableState();
     stateStore.putAttachmentDeliveryRecord = () => { throw new Error('simulated persistence failure'); };
