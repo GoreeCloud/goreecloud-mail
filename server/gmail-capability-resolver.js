@@ -53,7 +53,7 @@ export function resolveGmailCapabilitiesFromScopes(grantedScopes) {
   const canReadLabels = canReadMessages || scopes.has(GMAIL_OAUTH_SCOPE.LABELS);
 
   return normalizeCapabilities({
-    mailboxAccess: canReadMessages || canReadLabels,
+    mailboxAccess: canReadMessages,
     messageRead: canReadMessages,
     attachmentRetrieval: canReadMessages,
     labels: canReadLabels,
