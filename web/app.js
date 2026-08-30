@@ -23,6 +23,7 @@ const composeAttachments = document.querySelector('#composeAttachments');
 const composeAttachmentPreview = document.querySelector('#composeAttachmentPreview');
 const composeDraftButton = composeForm.querySelector('.draft-button');
 const composeSendButton = composeForm.querySelector('.send-button');
+const composeToInput = composeForm.querySelector('input[name="to"]');
 const providerStatus = document.querySelector('#providerStatus');
 const emptyReader = document.querySelector('#emptyReader');
 const messageReader = document.querySelector('#messageReader');
@@ -309,6 +310,11 @@ composeForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (!runtime || !provider) {
     composeStatus.textContent = 'Mail provider runtime is unavailable.';
+    return;
+  }
+  if (operation === 'send' && !composeToInput.value.trim()) {
+    composeStatus.textContent = 'Add at least one recipient before sending. You can save this message as a draft without one.';
+    composeToInput.focus();
     return;
   }
   if (selectedComposeAttachments.length > 0 && !runtime.canSendAttachments) {
