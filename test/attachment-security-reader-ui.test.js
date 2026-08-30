@@ -13,7 +13,7 @@ test('message reader consumes the Wardveil attachment presentation gate', async 
   assert.match(app, /presentAttachmentSecurity\(attachment\.securityDecision\)/);
   assert.match(app, /button\.disabled = !allowed/);
   assert.match(app, /readerAttachmentStatus/);
-  assert.match(app, /transport is not connected in the development shell/);
+  assert.match(app, /browser attachment retrieval remains outside this development slice/);
   assert.doesNotMatch(app, /innerHTML\s*=/);
 });
 
