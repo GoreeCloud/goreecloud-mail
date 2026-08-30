@@ -8,6 +8,8 @@ GoreeCloud Mail is in **Active Development**. Production deployment and public S
 
 Current source includes a responsive web client and trusted provider backend foundations. Real-provider use requires an approved Development environment with the corresponding provider authorization configured by the operator. Do not expect a public sign-up or hosted `@goreecloud` mailbox service from the current application.
 
+The Development web shell defaults to a local demo provider. Operators can explicitly configure the page for the authenticated same-origin Mail gateway using only a non-secret provider-account identifier and root-relative gateway path. Reusable provider tokens, refresh tokens, app passwords, session secrets, and cryptographic keys must not be placed in browser metadata.
+
 ## Accounts and provider capabilities
 
 GoreeCloud Mail uses provider-account connections rather than exposing reusable provider credentials to the browser. Available actions depend on the capabilities the external provider authorizes and the GoreeCloud adapter actually implements.
@@ -22,19 +24,25 @@ The current Gmail foundation supports authenticated mailbox listing and normaliz
 
 Provider attachment bytes are treated as untrusted input. Where the current cached attachment-delivery path is used, GoreeCloud Mail requires a current authoritative Wardveil Scan clean result bound to the exact content before a cached object becomes downloadable. Malicious, suspicious, unknown, unsupported, expired, invalid, or scanner-unavailable results fail closed.
 
+The browser composer can select and locally preview attachments under the current source limits of **20 files maximum, 10 MiB per file, and 20 MiB total**. Filename safety, media-type normalization, exact byte materialization, and declared-versus-read size checks occur before submission. These client checks improve usability but are not security authorization.
+
+Demo mode never sends attachment bytes. In an explicitly configured authenticated gateway environment, the browser can submit the materialized attachment shape to the trusted Mail backend. The backend still validates the complete message, scans the exact outgoing bytes through Wardveil, requires current authoritative clean evidence, durably records minimized scan provenance, and only then permits the provider write.
+
 Do not interpret a source-level attachment workflow as production scanning acceptance; runtime deployment and production security evidence remain separate gates.
 
 ## Sending mail
 
-The current Gmail source supports a bounded plain-text send foundation. At least one recipient is required, header/body sizes are bounded, unsafe header characters are rejected, and Gmail write operations are not automatically retried.
+The current Gmail source supports bounded plain-text and sanitized rich composition, including bounded outgoing attachments through the trusted provider path. At least one recipient is required, header/body sizes are bounded, unsafe header characters are rejected, and Gmail write operations are not automatically retried.
+
+The browser Development shell remains fail-closed by default: local demo mode can perform only its demo submission and rejects attachment-bearing sends. Gateway mode must be explicitly selected and uses the authenticated same-origin backend rather than browser-held provider credentials.
 
 A caller may use a stable client mutation identifier for send reconciliation. If Gmail returns an ambiguous temporary failure after the single send attempt, GoreeCloud Mail can search the Sent mailbox for the server-generated RFC Message-ID instead of replaying the write. Exactly one matching message confirms the send. If the outcome cannot be confirmed, the application returns a non-retryable provider-write-outcome-unknown state so generic retry logic does not accidentally send a duplicate.
 
-This is Development source behavior. Real Gmail timing/search-consistency acceptance is still required before production claims.
+This is Development source behavior. Real Gmail timing/search-consistency acceptance and production provider environment acceptance are still required before production claims.
 
 ## Drafts
 
-The current Gmail source supports bounded plain-text draft creation and replacement. Draft create/update writes remain one-attempt operations and are not automatically replayed.
+The current Gmail source supports bounded draft creation and replacement through the trusted provider service. Draft create/update writes remain one-attempt operations and are not automatically replayed.
 
 When a stable client mutation identifier is supplied, GoreeCloud Mail inserts a server-generated deterministic RFC Message-ID into the draft message before the write. If Gmail returns an ambiguous temporary failure, the application performs a bounded draft lookup for that Message-ID. A unique match can confirm draft creation. For a draft replacement, the unique match must also have the exact provider draft ID being updated. Otherwise the result fails closed as non-retryable provider-write-outcome-unknown.
 
@@ -42,7 +50,7 @@ This reconciliation reduces duplicate-write risk but does not establish producti
 
 ## Sender identities and rich composition
 
-Arbitrary caller-provided From identities fail closed unless a provider-confirmed sender-identity capability is implemented and authorized. Rich HTML composition, outgoing attachments, multipart MIME, signatures, inline images, templates, and advanced sender-identity workflows remain separate milestones unless later source/documentation explicitly marks them implemented.
+Arbitrary caller-provided From identities fail closed unless a provider-confirmed sender-identity capability is implemented and authorized. Production sender-identity workflows, inline images, templates, complete signature tooling, and broader rich-composer parity remain separate milestones unless later source/documentation explicitly marks them implemented.
 
 ## Privacy and security expectations
 
@@ -56,6 +64,6 @@ Arbitrary caller-provided From identities fail closed unless a provider-confirme
 
 ## Current limitations
 
-The Development repository does not establish production provider connectivity, production OAuth consent/verification, complete sender identities, rich composer parity, durable offline/cross-process operation journals, real-provider write-reconciliation timing acceptance, production HTML sanitization, complete native Android/iOS/Linux packaging, signed release distribution, or Stable qualification.
+The Development repository does not establish production provider connectivity, production OAuth consent/verification, complete sender identities, durable offline/cross-process operation journals, real-provider write-reconciliation timing acceptance, production HTML sanitizer acceptance, complete native Android/iOS/Linux packaging, signed release distribution, or Stable qualification.
 
 Refer to `README.md`, `SPECIFICATIONS.md`, `FEATURES.md`, and the `docs/` directory for implementation and acceptance details.
