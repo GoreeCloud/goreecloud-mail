@@ -1,9 +1,16 @@
 import { materializeComposeAttachments } from './compose-attachments.js';
-import { validateMailProvider } from './mail-provider.js';
-import { DemoMailProvider } from './providers/demo-provider.js';
+import { readMailProviderRuntime } from './provider-runtime.js';
 import { presentAttachmentSecurity } from './security/attachment-security-presentation.js';
 
-const provider = validateMailProvider(new DemoMailProvider());
+const runtimeResult = (() => {
+  try {
+    return { runtime: readMailProviderRuntime() };
+  } catch (error) {
+    return { error };
+  }
+})();
+const runtime = runtimeResult.runtime ?? null;
+const provider = runtime?.provider ?? null;
 
 const mailboxList = document.querySelector('#mailboxList');
 const messageList = document.querySelector('#messageList');
@@ -14,6 +21,8 @@ const composeForm = document.querySelector('#composeForm');
 const composeStatus = document.querySelector('#composeStatus');
 const composeAttachments = document.querySelector('#composeAttachments');
 const composeAttachmentPreview = document.querySelector('#composeAttachmentPreview');
+const composeSendButton = composeForm.querySelector('.send-button');
+const providerStatus = document.querySelector('#providerStatus');
 const emptyReader = document.querySelector('#emptyReader');
 const messageReader = document.querySelector('#messageReader');
 const readerSubject = document.querySelector('#readerSubject');
@@ -228,6 +237,11 @@ async function openMessage(id) {
 }
 
 async function initialize() {
+  if (!runtime || !provider) {
+    throw runtimeResult.error ?? new Error('Mail provider runtime is unavailable.');
+  }
+  providerStatus.textContent = runtime.label;
+  composeSendButton.textContent = runtime.mode === 'gateway' ? 'Send message' : 'Send demo message';
   await provider.authenticate();
   const [mailboxes, loadedMessages] = await Promise.all([
     provider.listMailboxes(),
@@ -240,7 +254,7 @@ async function initialize() {
 
 messageList.addEventListener('click', async (event) => {
   const card = event.target.closest('[data-message-id]');
-  if (!card) return;
+  if (!card || !provider) return;
   await openMessage(card.dataset.messageId);
 });
 
@@ -248,10 +262,11 @@ readerAttachments.addEventListener('click', (event) => {
   const button = event.target.closest('[data-attachment-action]');
   if (!button || button.disabled) return;
   const actionLabel = button.dataset.attachmentAction === 'open' ? 'Open' : 'Download';
-  readerAttachmentStatus.textContent = `${actionLabel} is security-authorized for this demo evidence, but attachment transport is not connected in the development shell.`;
+  readerAttachmentStatus.textContent = `${actionLabel} is security-authorized for this evidence state, but browser attachment retrieval remains outside this development slice.`;
 });
 
 searchInput.addEventListener('input', async () => {
+  if (!provider) return;
   const query = searchInput.value.trim();
   if (!query) {
     renderMessages(messages);
@@ -274,7 +289,9 @@ composeAttachments.addEventListener('change', async () => {
     const materialized = await materializeComposeAttachments(files);
     renderComposeAttachmentPreview(files, materialized);
     if (materialized.length > 0) {
-      composeStatus.textContent = `${materialized.length} attachment${materialized.length === 1 ? '' : 's'} validated locally. Authenticated provider sending is required before these bytes can leave the browser.`;
+      composeStatus.textContent = runtime?.canSendAttachments
+        ? `${materialized.length} attachment${materialized.length === 1 ? '' : 's'} validated locally. The authenticated gateway remains responsible for authoritative Wardveil acceptance before delivery.`
+        : `${materialized.length} attachment${materialized.length === 1 ? '' : 's'} validated locally. Demo mode never transmits attachment bytes.`;
     }
   } catch (error) {
     clearComposeAttachmentPreview();
@@ -288,8 +305,12 @@ composeForm.addEventListener('submit', async (event) => {
   if (!submitter || submitter.value !== 'send') return;
 
   event.preventDefault();
-  if (selectedComposeAttachments.length > 0) {
-    composeStatus.textContent = 'Attachment sending is blocked in the demo provider. Use the authenticated Wardveil-gated provider path when that UI is activated.';
+  if (!runtime || !provider) {
+    composeStatus.textContent = 'Mail provider runtime is unavailable.';
+    return;
+  }
+  if (selectedComposeAttachments.length > 0 && !runtime.canSendAttachments) {
+    composeStatus.textContent = 'Attachment sending is blocked in demo mode. Attachment bytes remain local.';
     return;
   }
 
@@ -298,17 +319,24 @@ composeForm.addEventListener('submit', async (event) => {
     to: formData.get('to'),
     subject: formData.get('subject'),
     body: formData.get('body'),
+    ...(selectedComposeAttachments.length > 0 ? { attachments: selectedComposeAttachments } : {}),
   };
 
-  await provider.send(payload);
-  composeStatus.textContent = 'Demo send completed locally.';
-  composeForm.reset();
-  clearComposeAttachmentPreview();
-  setTimeout(() => composeDialog.close(), 500);
+  try {
+    await provider.send(payload);
+    composeStatus.textContent = runtime.mode === 'gateway'
+      ? 'Message accepted by the authenticated gateway path.'
+      : 'Demo send completed locally.';
+    composeForm.reset();
+    clearComposeAttachmentPreview();
+    setTimeout(() => composeDialog.close(), 500);
+  } catch (error) {
+    composeStatus.textContent = error instanceof Error ? error.message : 'The message could not be sent.';
+  }
 });
 
 flagButton.addEventListener('click', async () => {
-  if (!selectedMessageId) return;
+  if (!selectedMessageId || !provider) return;
   const current = messages.find((message) => message.id === selectedMessageId);
   if (!current) return;
 
@@ -321,5 +349,8 @@ flagButton.addEventListener('click', async () => {
 
 initialize().catch((error) => {
   console.error('Unable to initialize GoreeCloud Mail development shell.', error);
-  messageList.textContent = 'Unable to initialize the development mail provider.';
+  composeButton.disabled = true;
+  composeSendButton.disabled = true;
+  providerStatus.textContent = 'Provider unavailable';
+  messageList.textContent = 'Unable to initialize the configured development mail provider.';
 });
