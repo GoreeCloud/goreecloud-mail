@@ -21,6 +21,7 @@ const composeForm = document.querySelector('#composeForm');
 const composeStatus = document.querySelector('#composeStatus');
 const composeAttachments = document.querySelector('#composeAttachments');
 const composeAttachmentPreview = document.querySelector('#composeAttachmentPreview');
+const composeDraftButton = composeForm.querySelector('.draft-button');
 const composeSendButton = composeForm.querySelector('.send-button');
 const providerStatus = document.querySelector('#providerStatus');
 const emptyReader = document.querySelector('#emptyReader');
@@ -241,6 +242,7 @@ async function initialize() {
     throw runtimeResult.error ?? new Error('Mail provider runtime is unavailable.');
   }
   providerStatus.textContent = runtime.label;
+  composeDraftButton.textContent = runtime.mode === 'gateway' ? 'Save draft' : 'Save demo draft';
   composeSendButton.textContent = runtime.mode === 'gateway' ? 'Send message' : 'Send demo message';
   await provider.authenticate();
   const [mailboxes, loadedMessages] = await Promise.all([
@@ -290,7 +292,7 @@ composeAttachments.addEventListener('change', async () => {
     renderComposeAttachmentPreview(files, materialized);
     if (materialized.length > 0) {
       composeStatus.textContent = runtime?.canSendAttachments
-        ? `${materialized.length} attachment${materialized.length === 1 ? '' : 's'} validated locally. The authenticated gateway remains responsible for authoritative Wardveil acceptance before delivery.`
+        ? `${materialized.length} attachment${materialized.length === 1 ? '' : 's'} validated locally. The authenticated gateway remains responsible for authoritative Wardveil acceptance before provider write.`
         : `${materialized.length} attachment${materialized.length === 1 ? '' : 's'} validated locally. Demo mode never transmits attachment bytes.`;
     }
   } catch (error) {
@@ -301,8 +303,8 @@ composeAttachments.addEventListener('change', async () => {
 });
 
 composeForm.addEventListener('submit', async (event) => {
-  const submitter = event.submitter;
-  if (!submitter || submitter.value !== 'send') return;
+  const operation = event.submitter?.value;
+  if (operation !== 'send' && operation !== 'draft') return;
 
   event.preventDefault();
   if (!runtime || !provider) {
@@ -310,7 +312,9 @@ composeForm.addEventListener('submit', async (event) => {
     return;
   }
   if (selectedComposeAttachments.length > 0 && !runtime.canSendAttachments) {
-    composeStatus.textContent = 'Attachment sending is blocked in demo mode. Attachment bytes remain local.';
+    composeStatus.textContent = operation === 'draft'
+      ? 'Attachment draft saving is blocked in demo mode. Attachment bytes remain local.'
+      : 'Attachment sending is blocked in demo mode. Attachment bytes remain local.';
     return;
   }
 
@@ -323,15 +327,26 @@ composeForm.addEventListener('submit', async (event) => {
   };
 
   try {
-    await provider.send(payload);
-    composeStatus.textContent = runtime.mode === 'gateway'
-      ? 'Message accepted by the authenticated gateway path.'
-      : 'Demo send completed locally.';
+    if (operation === 'draft') {
+      await provider.createDraft(payload);
+      composeStatus.textContent = runtime.mode === 'gateway'
+        ? 'Draft accepted by the authenticated gateway path.'
+        : 'Demo draft saved locally.';
+    } else {
+      await provider.send(payload);
+      composeStatus.textContent = runtime.mode === 'gateway'
+        ? 'Message accepted by the authenticated gateway path.'
+        : 'Demo send completed locally.';
+    }
     composeForm.reset();
     clearComposeAttachmentPreview();
     setTimeout(() => composeDialog.close(), 500);
   } catch (error) {
-    composeStatus.textContent = error instanceof Error ? error.message : 'The message could not be sent.';
+    composeStatus.textContent = error instanceof Error
+      ? error.message
+      : operation === 'draft'
+        ? 'The draft could not be saved.'
+        : 'The message could not be sent.';
   }
 });
 
@@ -350,6 +365,7 @@ flagButton.addEventListener('click', async () => {
 initialize().catch((error) => {
   console.error('Unable to initialize GoreeCloud Mail development shell.', error);
   composeButton.disabled = true;
+  composeDraftButton.disabled = true;
   composeSendButton.disabled = true;
   providerStatus.textContent = 'Provider unavailable';
   messageList.textContent = 'Unable to initialize the configured development mail provider.';
