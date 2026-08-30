@@ -115,7 +115,7 @@ export class GmailAccountService {
     const built = buildGmailRawMessage({
       ...authorizedMessage,
       ...(reconciliationMessageId ? { messageId: reconciliationMessageId } : {}),
-    });
+    }, { recipientRequired: false });
     const client = this.gmailClientFactory(context);
 
     try {
@@ -150,7 +150,7 @@ export class GmailAccountService {
     const built = buildGmailRawMessage({
       ...authorizedMessage,
       ...(reconciliationMessageId ? { messageId: reconciliationMessageId } : {}),
-    });
+    }, { recipientRequired: false });
     const client = this.gmailClientFactory(context);
 
     try {
