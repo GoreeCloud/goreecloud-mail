@@ -27,7 +27,9 @@ The repository currently includes:
 - bounded plain-text and sanitized rich Gmail composition with attachment-capable send, draft-create, and draft-update transport;
 - fail-closed outgoing Wardveil attachment authorization using the exact validated bytes that are serialized into provider MIME;
 - durable minimized outgoing clean-scan provenance that must persist before an attachment-bearing Gmail provider client is created;
-- a bounded browser `File`-to-compose attachment materializer for future authenticated gateway activation, intentionally not connected to the demo sender;
+- a bounded browser `File`-to-compose attachment materializer aligned to the current 20-file, 10 MiB-per-file, 20 MiB-total composition limits;
+- an explicit browser provider runtime that defaults to local demo mode and can activate the existing authenticated provider gateway only with a non-secret account identifier and same-origin gateway path;
+- demo-provider attachment submission that remains fail-closed so demo mode never transmits selected attachment bytes;
 - one-attempt Gmail writes so non-idempotent provider writes are not automatically replayed; and
 - **ambiguous Gmail send and draft-write reconciliation** using a server-owned deterministic RFC Message-ID and bounded provider lookup. Confirmed matches return reconciled metadata; unresolved outcomes fail closed as non-retryable `provider-write-outcome-unknown` rather than risking an automatic duplicate send or draft write.
 
@@ -45,9 +47,11 @@ The Gmail composition foundation supports bounded plain text, sanitized HTML alt
 
 When a stable client mutation identifier is supplied, send and draft create/update operations use a server-owned deterministic RFC Message-ID for post-failure reconciliation. Ambiguous send is checked against the Sent mailbox. Ambiguous draft create/update is checked against a bounded Gmail draft search, and an update is accepted only when the unique matching provider draft is the exact draft ID being replaced. No ambiguous write is automatically replayed.
 
-The browser-side compose attachment materializer mirrors the current server count/size/filename/media-type bounds and preserves selected bytes in the server-compatible base64 message shape. These checks are an early usability boundary, not security authority. The Development web shell remains demo-provider-backed, and attachment selection is deliberately not wired into that demo sender because doing so would create a visible path that bypasses the trusted Wardveil-gated provider write.
+The browser-side compose attachment materializer preserves selected bytes in the server-compatible base64 message shape and applies the current source limits of 20 attachments, 10 MiB per attachment, and 20 MiB total. These browser checks are an early usability boundary, not security authority. The Development web shell still defaults to the local demo provider. Demo mode refuses every attachment-bearing submission and never transmits selected bytes.
 
-Authenticated end-to-end provider UI activation, real Gmail attachment interoperability, production sender identities, production OAuth/credential custody, production Wardveil service acceptance, quarantine execution, offline replay UX, and release acceptance remain separate milestones.
+An operator may explicitly select `gateway` mode using non-secret page metadata for the provider mode, provider-account identifier, and a same-origin root-relative gateway base. No reusable provider token, refresh token, app password, session secret, or cryptographic key belongs in that browser configuration. In gateway mode, the browser may submit the already-materialized server-compatible attachment shape to the authenticated same-origin Mail API; the trusted backend remains authoritative for session identity, provider-account authorization, complete message validation, Wardveil exact-byte authorization, scan provenance, and the eventual provider write.
+
+Authenticated real-provider environment acceptance, production sender identities, production OAuth/credential custody, production Wardveil service acceptance, quarantine execution, offline replay UX, and release acceptance remain separate milestones.
 
 ## Wardveil attachment scanning
 
