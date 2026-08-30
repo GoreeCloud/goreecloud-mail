@@ -1,3 +1,4 @@
+import { materializeComposeAttachments } from './compose-attachments.js';
 import { validateMailProvider } from './mail-provider.js';
 import { DemoMailProvider } from './providers/demo-provider.js';
 import { presentAttachmentSecurity } from './security/attachment-security-presentation.js';
@@ -11,6 +12,8 @@ const composeButton = document.querySelector('#composeButton');
 const composeDialog = document.querySelector('#composeDialog');
 const composeForm = document.querySelector('#composeForm');
 const composeStatus = document.querySelector('#composeStatus');
+const composeAttachments = document.querySelector('#composeAttachments');
+const composeAttachmentPreview = document.querySelector('#composeAttachmentPreview');
 const emptyReader = document.querySelector('#emptyReader');
 const messageReader = document.querySelector('#messageReader');
 const readerSubject = document.querySelector('#readerSubject');
@@ -25,6 +28,7 @@ const flagButton = document.querySelector('#flagButton');
 
 let messages = [];
 let selectedMessageId = null;
+let selectedComposeAttachments = [];
 
 function formatDate(value) {
   return new Intl.DateTimeFormat(undefined, {
@@ -150,9 +154,7 @@ function renderAttachments(attachments = []) {
         button.dataset.attachmentId = attachment.id || '';
         button.disabled = !allowed;
         button.textContent = action === 'open' ? 'Open' : 'Download';
-        if (!allowed) {
-          button.title = presentation.headline;
-        }
+        if (!allowed) button.title = presentation.headline;
         actions.append(button);
       }
 
@@ -173,6 +175,34 @@ function renderAttachments(attachments = []) {
         card.append(heading, security, actions);
       }
       return card;
+    }),
+  );
+}
+
+function clearComposeAttachmentPreview() {
+  selectedComposeAttachments = [];
+  composeAttachmentPreview.hidden = true;
+  composeAttachmentPreview.replaceChildren();
+}
+
+function renderComposeAttachmentPreview(files, materialized) {
+  selectedComposeAttachments = materialized;
+  if (materialized.length === 0) {
+    clearComposeAttachmentPreview();
+    return;
+  }
+
+  composeAttachmentPreview.hidden = false;
+  composeAttachmentPreview.replaceChildren(
+    ...materialized.map((attachment, index) => {
+      const row = document.createElement('div');
+      row.className = 'compose-attachment-row';
+      const name = document.createElement('strong');
+      name.textContent = attachment.filename;
+      const detail = document.createElement('span');
+      detail.textContent = `${formatBytes(files[index]?.size ?? 0)} · ${attachment.contentType}`;
+      row.append(name, detail);
+      return row;
     }),
   );
 }
@@ -232,7 +262,25 @@ searchInput.addEventListener('input', async () => {
 
 composeButton.addEventListener('click', () => {
   composeStatus.textContent = '';
+  clearComposeAttachmentPreview();
+  composeAttachments.value = '';
   composeDialog.showModal();
+});
+
+composeAttachments.addEventListener('change', async () => {
+  composeStatus.textContent = '';
+  const files = Array.from(composeAttachments.files ?? []);
+  try {
+    const materialized = await materializeComposeAttachments(files);
+    renderComposeAttachmentPreview(files, materialized);
+    if (materialized.length > 0) {
+      composeStatus.textContent = `${materialized.length} attachment${materialized.length === 1 ? '' : 's'} validated locally. Authenticated provider sending is required before these bytes can leave the browser.`;
+    }
+  } catch (error) {
+    clearComposeAttachmentPreview();
+    composeAttachments.value = '';
+    composeStatus.textContent = error instanceof Error ? error.message : 'The selected attachments could not be validated.';
+  }
 });
 
 composeForm.addEventListener('submit', async (event) => {
@@ -240,6 +288,11 @@ composeForm.addEventListener('submit', async (event) => {
   if (!submitter || submitter.value !== 'send') return;
 
   event.preventDefault();
+  if (selectedComposeAttachments.length > 0) {
+    composeStatus.textContent = 'Attachment sending is blocked in the demo provider. Use the authenticated Wardveil-gated provider path when that UI is activated.';
+    return;
+  }
+
   const formData = new FormData(composeForm);
   const payload = {
     to: formData.get('to'),
@@ -250,6 +303,7 @@ composeForm.addEventListener('submit', async (event) => {
   await provider.send(payload);
   composeStatus.textContent = 'Demo send completed locally.';
   composeForm.reset();
+  clearComposeAttachmentPreview();
   setTimeout(() => composeDialog.close(), 500);
 });
 
