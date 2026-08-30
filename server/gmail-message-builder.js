@@ -16,8 +16,9 @@ export const GMAIL_MESSAGE_LIMITS = Object.freeze({
   attachmentContentTypeChars: 255,
 });
 
-export function buildGmailRawMessage(input = {}) {
-  const to = normalizeAddressList(input.to, { required: true, field: 'to' });
+export function buildGmailRawMessage(input = {}, { recipientRequired = true } = {}) {
+  if (typeof recipientRequired !== 'boolean') throw new TypeError('recipientRequired must be a boolean');
+  const to = normalizeAddressList(input.to, { required: recipientRequired, field: 'to' });
   const cc = normalizeAddressList(input.cc, { field: 'cc' });
   const bcc = normalizeAddressList(input.bcc, { field: 'bcc' });
   const subject = normalizeHeaderValue(input.subject ?? '', 'subject', GMAIL_MESSAGE_LIMITS.subjectChars);
@@ -39,7 +40,7 @@ export function buildGmailRawMessage(input = {}) {
   const attachments = normalizeAttachments(input.attachments);
   const sanitizedHtml = requestedHtml === null ? null : sanitizeMessageHtml(requestedHtml);
   const headers = [
-    `To: ${to.join(', ')}`,
+    ...(to.length ? [`To: ${to.join(', ')}`] : []),
     ...(cc.length ? [`Cc: ${cc.join(', ')}`] : []),
     ...(bcc.length ? [`Bcc: ${bcc.join(', ')}`] : []),
     ...(from ? [`From: ${from}`] : []),
