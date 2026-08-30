@@ -1,0 +1,47 @@
+.compose-attachment-picker small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.compose-attachment-picker input[type="file"] {
+  min-height: 48px;
+  padding: 10px 12px;
+}
+
+.compose-attachment-preview {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--accent-soft);
+}
+
+.compose-attachment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+}
+
+.compose-attachment-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compose-attachment-row span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 540px) {
+  .compose-attachment-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+}
