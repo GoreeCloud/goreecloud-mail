@@ -50,7 +50,7 @@ export class GmailOutgoingAttachmentSecurityGate {
     if (!Number.isFinite(now)) throw new TypeError('now must be a finite timestamp');
 
     // Preserve one validation authority for all Gmail composition bounds and attachment syntax.
-    buildGmailRawMessage(message);
+    buildGmailRawMessage(message, { recipientRequired: action === 'send' });
 
     const securedAttachments = [];
     const scans = [];
