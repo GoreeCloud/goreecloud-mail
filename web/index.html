@@ -4,6 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
+    <meta name="goreecloud-mail-provider" content="demo" />
+    <meta name="goreecloud-mail-gateway" content="/api/mail" />
     <title>GoreeCloud Mail</title>
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./attachment-security.css" />
@@ -111,7 +113,7 @@
         <label class="compose-attachment-picker">
           <span>Attachments</span>
           <input id="composeAttachments" name="attachments" type="file" multiple />
-          <small>Select files to validate and preview locally. The demo provider cannot send attachment-bearing messages.</small>
+          <small>Files are validated and previewed locally. Demo mode never transmits attachment bytes; an explicitly configured authenticated same-origin gateway can submit them to the server-authoritative Wardveil-gated provider path.</small>
         </label>
         <section id="composeAttachmentPreview" class="compose-attachment-preview" aria-label="Selected attachments" hidden></section>
 
