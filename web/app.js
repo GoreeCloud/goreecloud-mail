@@ -7,6 +7,10 @@ import {
 import { mailboxName, filterLoadedMailboxMessages } from './mailbox-view.js';
 import { moveDestinationMailboxes } from './message-move.js';
 import { readMailProviderRuntime } from './provider-runtime.js';
+import {
+  canExposeReadStateAction,
+  deriveReadStateAction,
+} from './read-state-action.js';
 import { presentAttachmentSecurity } from './security/attachment-security-presentation.js';
 
 const runtimeResult = (() => {
@@ -52,6 +56,12 @@ const moveButton = document.querySelector('#moveButton');
 const archiveButton = document.querySelector('#archiveButton');
 const deleteButton = document.querySelector('#deleteButton');
 const flagButton = document.querySelector('#flagButton');
+const readStateButton = document.createElement('button');
+readStateButton.id = 'readStateButton';
+readStateButton.type = 'button';
+readStateButton.className = 'reader-action';
+readStateButton.hidden = true;
+flagButton.before(readStateButton);
 
 let mailboxes = [];
 let messages = [];
@@ -168,19 +178,31 @@ function syncMoveDestinations(hasSelection) {
 }
 
 function syncReaderActions() {
-  const hasSelection = Boolean(selectedMessageId) && !messageMutationInFlight;
+  const hasSelectedMessage = Boolean(selectedMessageId);
+  const hasSelection = hasSelectedMessage && !messageMutationInFlight;
   const archiveAvailable = providerCapabilities[MAIL_PROVIDER_CAPABILITY.ARCHIVE]
     && selectedMailboxId !== 'archive'
     && selectedMailboxId !== 'trash';
   const deleteAvailable = providerCapabilities[MAIL_PROVIDER_CAPABILITY.DELETE]
     && selectedMailboxId !== 'trash';
   const flagAvailable = providerCapabilities[MAIL_PROVIDER_CAPABILITY.FLAGS];
+  const readStateAction = deriveReadStateAction(selectedMessage);
+  const readStateCapability = providerCapabilities[MAIL_PROVIDER_CAPABILITY.READ_STATE];
+  const readStateAvailable = readStateAction.available && readStateCapability;
 
   syncMoveDestinations(hasSelection);
   archiveButton.hidden = !archiveAvailable;
   archiveButton.disabled = !hasSelection || !archiveAvailable;
   deleteButton.hidden = !deleteAvailable;
   deleteButton.disabled = !hasSelection || !deleteAvailable;
+  readStateButton.hidden = !readStateAvailable;
+  readStateButton.disabled = !canExposeReadStateAction({
+    hasSelection: hasSelectedMessage,
+    mutationInFlight: messageMutationInFlight,
+    readStateCapability,
+  });
+  readStateButton.textContent = readStateAction.label || 'Read state';
+  readStateButton.setAttribute('aria-label', readStateAction.label || 'Change message read state');
   flagButton.hidden = !flagAvailable;
   flagButton.disabled = !hasSelection || !flagAvailable;
 }
@@ -435,6 +457,39 @@ async function runSelectedMessageMutation({ operation, successLabel }) {
   }
 }
 
+async function runSelectedReadStateMutation() {
+  const action = deriveReadStateAction(selectedMessage);
+  if (
+    !selectedMessageId
+    || !provider
+    || messageMutationInFlight
+    || !providerCapabilities[MAIL_PROVIDER_CAPABILITY.READ_STATE]
+    || !action.available
+  ) return;
+
+  const messageId = selectedMessageId;
+  messageMutationInFlight = true;
+  setMailboxControlsDisabled(true);
+  syncReaderActions();
+
+  try {
+    await provider.setReadState(messageId, action.targetRead);
+    await refreshMailboxMetadata();
+    await loadMailbox(selectedMailboxId, { force: true });
+    if (messages.some((message) => message.id === messageId)) {
+      await openMessage(messageId);
+    }
+    providerStatus.textContent = `${runtime.label} · ${action.successLabel}`;
+  } catch (error) {
+    providerStatus.textContent = `${runtime.label} · ${action.successLabel} failed`;
+    console.error('Unable to change the selected GoreeCloud Mail message read state.', error);
+  } finally {
+    messageMutationInFlight = false;
+    setMailboxControlsDisabled(false);
+    syncReaderActions();
+  }
+}
+
 async function runSelectedMessageMove() {
   if (!selectedMessageId || !provider || messageMutationInFlight || !providerCapabilities[MAIL_PROVIDER_CAPABILITY.MOVE]) return;
   const destinationId = moveMailboxSelect.value;
@@ -541,6 +596,10 @@ moveButton.addEventListener('click', () => {
 
 archiveButton.addEventListener('click', () => {
   void runSelectedMessageMutation({ operation: 'archive', successLabel: 'message archived' });
+});
+
+readStateButton.addEventListener('click', () => {
+  void runSelectedReadStateMutation();
 });
 
 deleteButton.addEventListener('click', () => {
@@ -653,6 +712,7 @@ initialize().catch((error) => {
   moveButton.disabled = true;
   archiveButton.disabled = true;
   deleteButton.disabled = true;
+  readStateButton.disabled = true;
   flagButton.disabled = true;
   providerStatus.textContent = 'Provider unavailable';
   messageList.textContent = 'Unable to initialize the configured development mail provider.';
