@@ -1,4 +1,5 @@
 import { materializeComposeAttachments } from './compose-attachments.js';
+import { buildForwardCompose, buildReplyCompose } from './compose-context.js';
 import { readMailProviderRuntime } from './provider-runtime.js';
 import { presentAttachmentSecurity } from './security/attachment-security-presentation.js';
 
@@ -18,6 +19,8 @@ const searchInput = document.querySelector('#searchInput');
 const composeButton = document.querySelector('#composeButton');
 const composeDialog = document.querySelector('#composeDialog');
 const composeForm = document.querySelector('#composeForm');
+const composeEyebrow = document.querySelector('#composeEyebrow');
+const composeTitle = document.querySelector('#composeTitle');
 const composeStatus = document.querySelector('#composeStatus');
 const composeAttachments = document.querySelector('#composeAttachments');
 const composeAttachmentPreview = document.querySelector('#composeAttachmentPreview');
@@ -34,10 +37,13 @@ const readerBody = document.querySelector('#readerBody');
 const readerAvatar = document.querySelector('#readerAvatar');
 const readerAttachments = document.querySelector('#readerAttachments');
 const readerAttachmentStatus = document.querySelector('#readerAttachmentStatus');
+const replyButton = document.querySelector('#replyButton');
+const forwardButton = document.querySelector('#forwardButton');
 const flagButton = document.querySelector('#flagButton');
 
 let messages = [];
 let selectedMessageId = null;
+let selectedMessage = null;
 let selectedComposeAttachments = [];
 
 function formatDate(value) {
@@ -59,6 +65,40 @@ function formatBytes(value) {
 function optionalComposeField(formData, name) {
   const value = String(formData.get(name) ?? '').trim();
   return value || null;
+}
+
+function setComposeField(name, value) {
+  const field = composeForm.elements.namedItem(name);
+  if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+    field.value = String(value ?? '');
+  }
+}
+
+function openCompose({
+  eyebrow = 'New message',
+  title = 'Compose',
+  to = '',
+  cc = '',
+  bcc = '',
+  subject = '',
+  body = '',
+  status = '',
+  focus = 'to',
+} = {}) {
+  composeForm.reset();
+  clearComposeAttachmentPreview();
+  composeAttachments.value = '';
+  composeEyebrow.textContent = eyebrow;
+  composeTitle.textContent = title;
+  composeStatus.textContent = status;
+  setComposeField('to', to);
+  setComposeField('cc', cc);
+  setComposeField('bcc', bcc);
+  setComposeField('subject', subject);
+  setComposeField('body', body);
+  composeDialog.showModal();
+  const focusTarget = composeForm.elements.namedItem(focus);
+  if (focusTarget instanceof HTMLElement) focusTarget.focus();
 }
 
 function renderMailboxes(mailboxes) {
@@ -227,6 +267,7 @@ async function openMessage(id) {
   if (!message) return;
 
   selectedMessageId = id;
+  selectedMessage = message;
   emptyReader.hidden = true;
   messageReader.hidden = false;
   readerSubject.textContent = message.subject;
@@ -282,11 +323,30 @@ searchInput.addEventListener('input', async () => {
   renderMessages(await provider.search(query));
 });
 
-composeButton.addEventListener('click', () => {
-  composeStatus.textContent = '';
-  clearComposeAttachmentPreview();
-  composeAttachments.value = '';
-  composeDialog.showModal();
+composeButton.addEventListener('click', () => openCompose());
+
+replyButton.addEventListener('click', () => {
+  if (!selectedMessage) return;
+  const context = buildReplyCompose(selectedMessage, formatDate(selectedMessage.receivedAt));
+  openCompose({
+    eyebrow: 'Reply',
+    title: `Reply to ${selectedMessage.sender}`,
+    ...context,
+    status: 'Plain-text reply context prepared locally. Original attachments are not copied automatically.',
+    focus: 'body',
+  });
+});
+
+forwardButton.addEventListener('click', () => {
+  if (!selectedMessage) return;
+  const context = buildForwardCompose(selectedMessage, formatDate(selectedMessage.receivedAt));
+  openCompose({
+    eyebrow: 'Forward',
+    title: 'Forward message',
+    ...context,
+    status: 'Forward context prepared locally. Original attachments are not copied automatically.',
+    focus: 'to',
+  });
 });
 
 composeAttachments.addEventListener('change', async () => {
@@ -368,6 +428,7 @@ flagButton.addEventListener('click', async () => {
   await provider.flag(selectedMessageId, current.flagged);
   flagButton.textContent = current.flagged ? '★' : '☆';
   flagButton.setAttribute('aria-pressed', String(current.flagged));
+  if (selectedMessage) selectedMessage.flagged = current.flagged;
   renderMessages(messages);
 });
 
@@ -376,6 +437,8 @@ initialize().catch((error) => {
   composeButton.disabled = true;
   composeDraftButton.disabled = true;
   composeSendButton.disabled = true;
+  replyButton.disabled = true;
+  forwardButton.disabled = true;
   providerStatus.textContent = 'Provider unavailable';
   messageList.textContent = 'Unable to initialize the configured development mail provider.';
 });

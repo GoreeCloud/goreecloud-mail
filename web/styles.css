@@ -339,13 +339,31 @@ button:focus-visible {
   font-size: clamp(1.5rem, 2.2vw, 2.2rem);
 }
 
+.reader-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reader-action,
 .icon-button {
-  min-width: 42px;
   min-height: 42px;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.72);
   color: inherit;
+}
+
+.reader-action {
+  padding: 0 13px;
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.icon-button {
+  min-width: 42px;
   font-size: 1.25rem;
 }
 
@@ -518,6 +536,7 @@ button:focus-visible {
 
   .mailbox-button,
   .message-card,
+  .reader-action,
   .icon-button,
   .search-field input,
   .compose-dialog input,
@@ -528,6 +547,7 @@ button:focus-visible {
   .message-card:hover,
   .message-card[aria-current="true"],
   .message-card.unread,
+  .reader-action,
   .icon-button,
   .search-field input,
   .compose-dialog input,
