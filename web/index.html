@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="./reader-move.css" />
     <link rel="stylesheet" href="./attachment-security.css" />
     <link rel="stylesheet" href="./compose-attachments.css" />
+    <link rel="stylesheet" href="./unread-filter.css" />
   </head>
   <body>
     <div class="app-shell">
@@ -46,7 +47,7 @@
 
         <section class="privacy-banner" aria-label="Privacy status">
           <strong>Privacy Shield</strong>
-          <span>Remote content is blocked in this development foundation. Browser search stays inside the currently loaded mailbox snapshot.</span>
+          <span>Remote content is blocked in this development foundation. Browser search and unread presentation stay inside the currently loaded mailbox snapshot.</span>
         </section>
 
         <section id="messageList" class="message-list" aria-label="Messages"></section>
@@ -146,5 +147,6 @@
     </dialog>
 
     <script type="module" src="./app.js"></script>
+    <script type="module" src="./unread-filter-control.js"></script>
   </body>
 </html>
