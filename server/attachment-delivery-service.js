@@ -65,9 +65,10 @@ export class AttachmentDeliveryService {
     this.scanProvenance = new Map();
   }
 
-  async retrieveGmailAttachment({ session, accountId, messageId, attachmentId, metadata = {}, maxBytes, ttlMs = null, now = Date.now() } = {}) {
+  async retrieveGmailAttachment({ session, accountId, messageId, attachmentId, metadata = {}, maxBytes, ttlMs = null, now = null } = {}) {
     const { userId } = requireSessionUser(session);
     if (ttlMs !== null && (!Number.isFinite(ttlMs) || ttlMs <= 0)) throw new TypeError('ttlMs must be positive when provided');
+    if (now !== null && !Number.isFinite(now)) throw new TypeError('now must be a finite timestamp when provided');
 
     const providerAttachment = await this.gmailAccountService.getAttachment({
       session,
@@ -99,10 +100,11 @@ export class AttachmentDeliveryService {
       });
     }
 
+    const validationNow = now === null ? Date.now() : now;
     const scan = requireCurrentCleanScan(scanEnvelope, {
       resourceId,
       digestSha256: expectedDigest,
-      now,
+      now: validationNow,
     });
 
     const normalizedMetadata = {
@@ -141,8 +143,8 @@ export class AttachmentDeliveryService {
       });
     }
 
-    const createdAt = new Date(now).toISOString();
-    const expiresAt = ttlMs === null ? null : new Date(now + ttlMs).toISOString();
+    const createdAt = new Date(validationNow).toISOString();
+    const expiresAt = ttlMs === null ? null : new Date(validationNow + ttlMs).toISOString();
     const record = Object.freeze({
       objectId: stored.objectId,
       userId,
