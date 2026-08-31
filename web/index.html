@@ -34,18 +34,18 @@
       <main class="message-column">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Inbox</p>
-            <h1>Mail</h1>
+            <p class="eyebrow">Mailbox</p>
+            <h1 id="mailboxTitle">Inbox</h1>
           </div>
           <label class="search-field">
-            <span class="sr-only">Search messages</span>
-            <input id="searchInput" type="search" placeholder="Search mail" autocomplete="off" />
+            <span class="sr-only">Search current mailbox</span>
+            <input id="searchInput" type="search" placeholder="Search this mailbox" autocomplete="off" />
           </label>
         </header>
 
         <section class="privacy-banner" aria-label="Privacy status">
           <strong>Privacy Shield</strong>
-          <span>Remote content is blocked in this development foundation.</span>
+          <span>Remote content is blocked in this development foundation. Browser search stays inside the currently loaded mailbox snapshot.</span>
         </section>
 
         <section id="messageList" class="message-list" aria-label="Messages"></section>
