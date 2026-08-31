@@ -12,7 +12,9 @@ External providers remain authoritative for mailbox hosting, mailbox contents, d
 
 The repository currently includes:
 
-- responsive Glaze UI web/client foundations;
+- responsive Glaze UI web/client foundations with provider-driven browser mailbox navigation and a message reader;
+- browser mailbox switching that uses `listMessages(mailboxId)`, generation-guards stale reads, and scopes local search to the currently loaded mailbox snapshot;
+- browser composition with multiple To recipients, optional Cc/Bcc, local Reply/Forward plain-text context, and no automatic forwarding of original attachments;
 - provider-independent Mail contracts and same-origin provider gateway boundaries;
 - Gmail and standards-based IMAP/SMTP adapter foundations;
 - trusted session-derived GoreeCloud user identity and user-scoped provider-account handling;
@@ -35,6 +37,14 @@ The repository currently includes:
 
 Synthetic provider tests validate source contracts without representing a real mailbox as production-connected.
 
+## Browser mailbox boundary
+
+The Development web shell lists mailboxes returned by the configured provider and treats each selection as a provider read. The browser does not decide which messages belong to Inbox, Starred, Sent, Drafts, Archive, Trash, or any other provider mailbox.
+
+Changing mailboxes clears the previous message reader and uses a generation guard so a slower earlier request cannot replace the results of a later selection. Browser search is intentionally local to the already-loaded mailbox snapshot rather than calling the provider-wide search surface and silently broadening results across mailboxes.
+
+The demo provider currently supplies example Inbox and Starred state and can return empty snapshots for other demo mailboxes. Real gateway/provider environments remain authoritative for their own mailbox contents and capabilities.
+
 ## Product role
 
 GoreeCloud Mail owns the GoreeCloud client experience, local/trusted-backend logic, privacy controls, security integration, synchronization behavior, intelligent-assistance boundaries, and wider GoreeCloud interoperability while compatible external providers remain the mail-service authority.
@@ -48,6 +58,8 @@ The Gmail composition foundation supports bounded plain text, sanitized HTML alt
 When a stable client mutation identifier is supplied, send and draft create/update operations use a server-owned deterministic RFC Message-ID for post-failure reconciliation. Ambiguous send is checked against the Sent mailbox. Ambiguous draft create/update is checked against a bounded Gmail draft search, and an update is accepted only when the unique matching provider draft is the exact draft ID being replaced. No ambiguous write is automatically replayed.
 
 The browser-side compose attachment materializer preserves selected bytes in the server-compatible base64 message shape and applies the current source limits of 20 attachments, 10 MiB per attachment, and 20 MiB total. These browser checks are an early usability boundary, not security authority. The Development web shell still defaults to the local demo provider. Demo mode refuses every attachment-bearing submission and never transmits selected bytes.
+
+Reply and Forward prepare local plain-text context and do not automatically copy original attachments. If the user wants attachments on a forwarded Development message, those bytes must re-enter through the normal attachment selection path so the existing trusted Wardveil-gated provider boundary is not bypassed. Reply All, production thread semantics, and full provider parity remain separate milestones.
 
 An operator may explicitly select `gateway` mode using non-secret page metadata for the provider mode, provider-account identifier, and a same-origin root-relative gateway base. No reusable provider token, refresh token, app password, session secret, or cryptographic key belongs in that browser configuration. In gateway mode, the browser may submit the already-materialized server-compatible attachment shape to the authenticated same-origin Mail API; the trusted backend remains authoritative for session identity, provider-account authorization, complete message validation, Wardveil exact-byte authorization, scan provenance, and the eventual provider write.
 

@@ -16,9 +16,32 @@ GoreeCloud Mail uses provider-account connections rather than exposing reusable 
 
 If an operation is unsupported, unavailable, or not authorized, GoreeCloud Mail should report that state rather than pretending it succeeded.
 
-## Reading mail
+## Mailboxes and reading mail
+
+The web shell now treats its mailbox rail as provider-driven navigation rather than decorative labels. Selecting a mailbox asks the configured Mail provider for that mailbox's message snapshot, updates the active mailbox title, clears the previous reader selection, and renders only the returned messages.
+
+- Rapid mailbox changes are generation-guarded so a slower earlier read cannot overwrite a later selection.
+- Browser search filters only the currently loaded mailbox snapshot; it does not silently broaden into other mailboxes.
+- The Development demo provider currently supplies example Inbox and Starred behavior. Other demo mailboxes can legitimately be empty.
+- Real gateway/provider environments remain authoritative for which mailboxes exist and which messages belong to each mailbox.
 
 The current Gmail foundation supports authenticated mailbox listing and normalized message reading through trusted backend boundaries. Provider HTML is untrusted; production HTML rendering remains gated until a maintained sanitizer is accepted. Remote-content privacy controls are governed by Privacy Shield.
+
+## Browser composition
+
+The Development browser composer supports:
+
+- one or more **To** recipients;
+- optional **Cc** recipients;
+- optional **Bcc** recipients;
+- subject and plain-text body entry;
+- bounded local attachment selection/preview;
+- **Reply** from an opened message; and
+- **Forward** from an opened message.
+
+Reply/Forward prepares deterministic plain-text context locally and avoids repeatedly adding an existing `Re:` or `Fwd:` prefix. Original attachments are not copied automatically; forwarding an attachment requires selecting it through the normal compose attachment path so the existing Wardveil-gated server boundary is not bypassed.
+
+These browser conveniences do not establish provider threading, Reply All, original-attachment forwarding, or production provider parity.
 
 ## Attachments
 
@@ -64,6 +87,6 @@ Arbitrary caller-provided From identities fail closed unless a provider-confirme
 
 ## Current limitations
 
-The Development repository does not establish production provider connectivity, production OAuth consent/verification, complete sender identities, durable offline/cross-process operation journals, real-provider write-reconciliation timing acceptance, production HTML sanitizer acceptance, complete native Android/iOS/Linux packaging, signed release distribution, or Stable qualification.
+The Development repository does not establish production provider connectivity, production OAuth consent/verification, complete sender identities, durable offline/cross-process operation journals, real-provider write-reconciliation timing acceptance, production HTML sanitizer acceptance, complete mailbox-action parity/threading/Reply All, complete native Android/iOS/Linux packaging, signed release distribution, or Stable qualification.
 
 Refer to `README.md`, `SPECIFICATIONS.md`, `FEATURES.md`, and the `docs/` directory for implementation and acceptance details.

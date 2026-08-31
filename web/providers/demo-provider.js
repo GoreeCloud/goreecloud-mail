@@ -70,8 +70,14 @@ export class DemoMailProvider {
     ];
   }
 
-  async listMessages() {
-    return structuredClone(demoMessages);
+  async listMessages(mailboxId = 'inbox') {
+    const normalizedMailbox = String(mailboxId ?? '').trim().toLowerCase();
+    const selected = normalizedMailbox === 'inbox'
+      ? demoMessages
+      : normalizedMailbox === 'starred'
+        ? demoMessages.filter((message) => message.flagged)
+        : [];
+    return structuredClone(selected);
   }
 
   async getMessage(id) {
@@ -114,7 +120,9 @@ export class DemoMailProvider {
   }
 
   async flag(id, flagged = true) {
-    return { id, flagged };
+    const message = demoMessages.find((candidate) => candidate.id === id);
+    if (message) message.flagged = Boolean(flagged);
+    return { id, flagged: Boolean(flagged) };
   }
 
   async sync() {
