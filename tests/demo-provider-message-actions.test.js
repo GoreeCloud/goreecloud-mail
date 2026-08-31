@@ -14,6 +14,18 @@ test('demo archive moves a message out of Inbox and into Archive', async () => {
   assert.equal((await provider.listMailboxes()).find(({ id }) => id === 'inbox').unread, 0);
 });
 
+test('demo move transfers a message between provider mailboxes and can move it back', async () => {
+  const provider = new DemoMailProvider();
+
+  await provider.move('welcome-1', 'archive');
+  assert.deepEqual((await provider.listMessages('inbox')).map(({ id }) => id), ['security-1']);
+  assert.deepEqual((await provider.listMessages('archive')).map(({ id }) => id), ['welcome-1']);
+
+  await provider.move('welcome-1', 'inbox');
+  assert.deepEqual((await provider.listMessages('archive')).map(({ id }) => id), []);
+  assert.deepEqual((await provider.listMessages('inbox')).map(({ id }) => id), ['welcome-1', 'security-1']);
+});
+
 test('demo delete moves a message into Trash and removes it from Starred', async () => {
   const provider = new DemoMailProvider();
 
