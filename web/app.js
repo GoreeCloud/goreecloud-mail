@@ -4,7 +4,8 @@ import {
   MAIL_PROVIDER_CAPABILITY,
   normalizeCapabilities,
 } from './mail-provider.js';
-import { filterLoadedMailboxMessages, mailboxName } from './mailbox-view.js';
+import { mailboxName, filterLoadedMailboxMessages } from './mailbox-view.js';
+import { moveDestinationMailboxes } from './message-move.js';
 import { readMailProviderRuntime } from './provider-runtime.js';
 import { presentAttachmentSecurity } from './security/attachment-security-presentation.js';
 
@@ -45,6 +46,9 @@ const readerAttachments = document.querySelector('#readerAttachments');
 const readerAttachmentStatus = document.querySelector('#readerAttachmentStatus');
 const replyButton = document.querySelector('#replyButton');
 const forwardButton = document.querySelector('#forwardButton');
+const moveControl = document.querySelector('#moveControl');
+const moveMailboxSelect = document.querySelector('#moveMailboxSelect');
+const moveButton = document.querySelector('#moveButton');
 const archiveButton = document.querySelector('#archiveButton');
 const deleteButton = document.querySelector('#deleteButton');
 const flagButton = document.querySelector('#flagButton');
@@ -143,6 +147,26 @@ function setMailboxControlsDisabled(disabled) {
   }
 }
 
+function syncMoveDestinations(hasSelection) {
+  const moveAvailable = providerCapabilities[MAIL_PROVIDER_CAPABILITY.MOVE];
+  const previousDestination = moveMailboxSelect.value;
+  const destinations = moveAvailable ? moveDestinationMailboxes(mailboxes, selectedMailboxId) : [];
+  moveMailboxSelect.replaceChildren(
+    ...destinations.map((mailbox) => {
+      const option = document.createElement('option');
+      option.value = mailbox.id;
+      option.textContent = mailbox.name;
+      return option;
+    }),
+  );
+  if (destinations.some((mailbox) => mailbox.id === previousDestination)) {
+    moveMailboxSelect.value = previousDestination;
+  }
+  moveControl.hidden = !moveAvailable || destinations.length === 0;
+  moveMailboxSelect.disabled = !hasSelection || !moveAvailable || destinations.length === 0;
+  moveButton.disabled = !hasSelection || !moveAvailable || destinations.length === 0;
+}
+
 function syncReaderActions() {
   const hasSelection = Boolean(selectedMessageId) && !messageMutationInFlight;
   const archiveAvailable = providerCapabilities[MAIL_PROVIDER_CAPABILITY.ARCHIVE]
@@ -152,6 +176,7 @@ function syncReaderActions() {
     && selectedMailboxId !== 'trash';
   const flagAvailable = providerCapabilities[MAIL_PROVIDER_CAPABILITY.FLAGS];
 
+  syncMoveDestinations(hasSelection);
   archiveButton.hidden = !archiveAvailable;
   archiveButton.disabled = !hasSelection || !archiveAvailable;
   deleteButton.hidden = !deleteAvailable;
@@ -410,6 +435,31 @@ async function runSelectedMessageMutation({ operation, successLabel }) {
   }
 }
 
+async function runSelectedMessageMove() {
+  if (!selectedMessageId || !provider || messageMutationInFlight || !providerCapabilities[MAIL_PROVIDER_CAPABILITY.MOVE]) return;
+  const destinationId = moveMailboxSelect.value;
+  const destination = moveDestinationMailboxes(mailboxes, selectedMailboxId).find((mailbox) => mailbox.id === destinationId);
+  if (!destination) return;
+
+  const messageId = selectedMessageId;
+  messageMutationInFlight = true;
+  setMailboxControlsDisabled(true);
+  syncReaderActions();
+  try {
+    await provider.move(messageId, destination.id);
+    await refreshMailboxMetadata();
+    await loadMailbox(selectedMailboxId, { force: true });
+    providerStatus.textContent = `${runtime.label} · message moved to ${destination.name}`;
+  } catch (error) {
+    providerStatus.textContent = `${runtime.label} · move to ${destination.name} failed`;
+    console.error('Unable to move the selected GoreeCloud Mail message.', error);
+  } finally {
+    messageMutationInFlight = false;
+    setMailboxControlsDisabled(false);
+    syncReaderActions();
+  }
+}
+
 async function initialize() {
   if (!runtime || !provider) {
     throw runtimeResult.error ?? new Error('Mail provider runtime is unavailable.');
@@ -483,6 +533,10 @@ forwardButton.addEventListener('click', () => {
     status: 'Forward context prepared locally. Original attachments are not copied automatically.',
     focus: 'to',
   });
+});
+
+moveButton.addEventListener('click', () => {
+  void runSelectedMessageMove();
 });
 
 archiveButton.addEventListener('click', () => {
@@ -595,6 +649,8 @@ initialize().catch((error) => {
   composeSendButton.disabled = true;
   replyButton.disabled = true;
   forwardButton.disabled = true;
+  moveMailboxSelect.disabled = true;
+  moveButton.disabled = true;
   archiveButton.disabled = true;
   deleteButton.disabled = true;
   flagButton.disabled = true;

@@ -8,6 +8,7 @@
     <meta name="goreecloud-mail-gateway" content="/api/mail" />
     <title>GoreeCloud Mail</title>
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./reader-move.css" />
     <link rel="stylesheet" href="./attachment-security.css" />
     <link rel="stylesheet" href="./compose-attachments.css" />
   </head>
@@ -67,6 +68,11 @@
             <div class="reader-actions" aria-label="Message actions">
               <button id="replyButton" type="button" class="reader-action">↩ Reply</button>
               <button id="forwardButton" type="button" class="reader-action">Forward ↗</button>
+              <div id="moveControl" class="reader-move-control" hidden>
+                <label class="sr-only" for="moveMailboxSelect">Move selected message to mailbox</label>
+                <select id="moveMailboxSelect" aria-label="Move selected message to mailbox"></select>
+                <button id="moveButton" type="button" class="reader-action">Move</button>
+              </div>
               <button id="archiveButton" type="button" class="reader-action" hidden>Archive</button>
               <button id="deleteButton" type="button" class="reader-action" hidden>Delete</button>
               <button id="flagButton" type="button" class="icon-button" aria-label="Flag message" aria-pressed="false">☆</button>
