@@ -64,7 +64,11 @@
               <p class="eyebrow">Message</p>
               <h2 id="readerSubject"></h2>
             </div>
-            <button id="flagButton" type="button" class="icon-button" aria-pressed="false">☆</button>
+            <div class="reader-actions" aria-label="Message actions">
+              <button id="replyButton" type="button" class="reader-action">↩ Reply</button>
+              <button id="forwardButton" type="button" class="reader-action">Forward ↗</button>
+              <button id="flagButton" type="button" class="icon-button" aria-label="Flag message" aria-pressed="false">☆</button>
+            </div>
           </header>
 
           <div class="sender-row">
@@ -92,8 +96,8 @@
       <form method="dialog" id="composeForm">
         <header>
           <div>
-            <p class="eyebrow">New message</p>
-            <h2>Compose</h2>
+            <p class="eyebrow" id="composeEyebrow">New message</p>
+            <h2 id="composeTitle">Compose</h2>
           </div>
           <button value="cancel" class="icon-button" aria-label="Close composer">×</button>
         </header>
