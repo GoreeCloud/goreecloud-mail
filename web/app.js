@@ -1,5 +1,9 @@
 import { materializeComposeAttachments } from './compose-attachments.js';
 import { buildForwardCompose, buildReplyCompose } from './compose-context.js';
+import {
+  MAIL_PROVIDER_CAPABILITY,
+  normalizeCapabilities,
+} from './mail-provider.js';
 import { filterLoadedMailboxMessages, mailboxName } from './mailbox-view.js';
 import { readMailProviderRuntime } from './provider-runtime.js';
 import { presentAttachmentSecurity } from './security/attachment-security-presentation.js';
@@ -41,16 +45,20 @@ const readerAttachments = document.querySelector('#readerAttachments');
 const readerAttachmentStatus = document.querySelector('#readerAttachmentStatus');
 const replyButton = document.querySelector('#replyButton');
 const forwardButton = document.querySelector('#forwardButton');
+const archiveButton = document.querySelector('#archiveButton');
+const deleteButton = document.querySelector('#deleteButton');
 const flagButton = document.querySelector('#flagButton');
 
 let mailboxes = [];
 let messages = [];
+let providerCapabilities = normalizeCapabilities();
 let selectedMailboxId = 'inbox';
 let selectedMessageId = null;
 let selectedMessage = null;
 let selectedComposeAttachments = [];
 let mailboxLoadGeneration = 0;
 let messageLoadGeneration = 0;
+let messageMutationInFlight = false;
 
 function formatDate(value) {
   return new Intl.DateTimeFormat(undefined, {
@@ -135,6 +143,23 @@ function setMailboxControlsDisabled(disabled) {
   }
 }
 
+function syncReaderActions() {
+  const hasSelection = Boolean(selectedMessageId) && !messageMutationInFlight;
+  const archiveAvailable = providerCapabilities[MAIL_PROVIDER_CAPABILITY.ARCHIVE]
+    && selectedMailboxId !== 'archive'
+    && selectedMailboxId !== 'trash';
+  const deleteAvailable = providerCapabilities[MAIL_PROVIDER_CAPABILITY.DELETE]
+    && selectedMailboxId !== 'trash';
+  const flagAvailable = providerCapabilities[MAIL_PROVIDER_CAPABILITY.FLAGS];
+
+  archiveButton.hidden = !archiveAvailable;
+  archiveButton.disabled = !hasSelection || !archiveAvailable;
+  deleteButton.hidden = !deleteAvailable;
+  deleteButton.disabled = !hasSelection || !deleteAvailable;
+  flagButton.hidden = !flagAvailable;
+  flagButton.disabled = !hasSelection || !flagAvailable;
+}
+
 function clearReader() {
   messageLoadGeneration += 1;
   selectedMessageId = null;
@@ -144,6 +169,7 @@ function clearReader() {
   readerAttachments.hidden = true;
   readerAttachments.replaceChildren();
   readerAttachmentStatus.textContent = '';
+  syncReaderActions();
 }
 
 function renderMessages(items) {
@@ -308,12 +334,13 @@ async function openMessage(id) {
   flagButton.textContent = message.flagged ? '★' : '☆';
   flagButton.setAttribute('aria-pressed', String(message.flagged));
   renderAttachments(message.attachments);
+  syncReaderActions();
   renderCurrentMailboxSearch();
 }
 
-async function loadMailbox(mailboxId) {
+async function loadMailbox(mailboxId, { force = false } = {}) {
   if (!provider || !mailboxes.some((mailbox) => mailbox.id === mailboxId)) return;
-  if (mailboxId === selectedMailboxId && messages.length > 0) return;
+  if (!force && mailboxId === selectedMailboxId && messages.length > 0) return;
 
   const generation = ++mailboxLoadGeneration;
   const previousMailboxId = selectedMailboxId;
@@ -333,6 +360,7 @@ async function loadMailbox(mailboxId) {
     mailboxTitle.textContent = mailboxName(mailboxes, selectedMailboxId);
     renderMailboxes();
     renderMessages(messages);
+    syncReaderActions();
   } catch (error) {
     if (generation !== mailboxLoadGeneration) return;
     selectedMailboxId = previousMailboxId;
@@ -340,10 +368,45 @@ async function loadMailbox(mailboxId) {
     mailboxTitle.textContent = mailboxName(mailboxes, selectedMailboxId);
     renderMailboxes();
     renderMessages(messages);
+    syncReaderActions();
     providerStatus.textContent = `${runtime.label} · mailbox read failed`;
     console.error('Unable to load the selected GoreeCloud Mail mailbox.', error);
   } finally {
     if (generation === mailboxLoadGeneration) setMailboxControlsDisabled(false);
+  }
+}
+
+async function refreshMailboxMetadata() {
+  try {
+    const refreshed = await provider.listMailboxes();
+    if (Array.isArray(refreshed) && refreshed.length > 0) {
+      mailboxes = refreshed;
+      renderMailboxes();
+    }
+  } catch (error) {
+    console.error('Unable to refresh GoreeCloud Mail mailbox metadata.', error);
+  }
+}
+
+async function runSelectedMessageMutation({ operation, successLabel }) {
+  if (!selectedMessageId || !provider || messageMutationInFlight) return;
+  const messageId = selectedMessageId;
+  messageMutationInFlight = true;
+  setMailboxControlsDisabled(true);
+  syncReaderActions();
+
+  try {
+    await provider[operation](messageId);
+    await refreshMailboxMetadata();
+    await loadMailbox(selectedMailboxId, { force: true });
+    providerStatus.textContent = `${runtime.label} · ${successLabel}`;
+  } catch (error) {
+    providerStatus.textContent = `${runtime.label} · ${successLabel} failed`;
+    console.error(`Unable to ${operation} the selected GoreeCloud Mail message.`, error);
+  } finally {
+    messageMutationInFlight = false;
+    setMailboxControlsDisabled(false);
+    syncReaderActions();
   }
 }
 
@@ -355,6 +418,13 @@ async function initialize() {
   composeDraftButton.textContent = runtime.mode === 'gateway' ? 'Save draft' : 'Save demo draft';
   composeSendButton.textContent = runtime.mode === 'gateway' ? 'Send message' : 'Send demo message';
   await provider.authenticate();
+  try {
+    providerCapabilities = normalizeCapabilities(await provider.capabilities());
+  } catch (error) {
+    providerCapabilities = normalizeCapabilities();
+    providerStatus.textContent = `${runtime.label} · message actions unavailable`;
+    console.error('Unable to read GoreeCloud Mail provider capabilities.', error);
+  }
   const loadedMailboxes = await provider.listMailboxes();
   if (!Array.isArray(loadedMailboxes) || loadedMailboxes.length === 0) {
     throw new Error('Mail provider returned no readable mailboxes.');
@@ -364,6 +434,7 @@ async function initialize() {
   messages = [];
   mailboxTitle.textContent = mailboxName(mailboxes, selectedMailboxId);
   renderMailboxes();
+  syncReaderActions();
   await loadMailbox(selectedMailboxId);
 }
 
@@ -412,6 +483,19 @@ forwardButton.addEventListener('click', () => {
     status: 'Forward context prepared locally. Original attachments are not copied automatically.',
     focus: 'to',
   });
+});
+
+archiveButton.addEventListener('click', () => {
+  void runSelectedMessageMutation({ operation: 'archive', successLabel: 'message archived' });
+});
+
+deleteButton.addEventListener('click', () => {
+  if (!selectedMessage) return;
+  const confirmed = window.confirm(
+    'Delete this message through the configured provider? The provider determines whether this means Trash or permanent deletion.',
+  );
+  if (!confirmed) return;
+  void runSelectedMessageMutation({ operation: 'remove', successLabel: 'message deleted' });
 });
 
 composeAttachments.addEventListener('change', async () => {
@@ -485,7 +569,7 @@ composeForm.addEventListener('submit', async (event) => {
 });
 
 flagButton.addEventListener('click', async () => {
-  if (!selectedMessageId || !provider) return;
+  if (!selectedMessageId || !provider || !providerCapabilities[MAIL_PROVIDER_CAPABILITY.FLAGS]) return;
   const current = messages.find((message) => message.id === selectedMessageId);
   if (!current) return;
 
@@ -501,6 +585,7 @@ flagButton.addEventListener('click', async () => {
     clearReader();
   }
   renderCurrentMailboxSearch();
+  await refreshMailboxMetadata();
 });
 
 initialize().catch((error) => {
@@ -510,6 +595,9 @@ initialize().catch((error) => {
   composeSendButton.disabled = true;
   replyButton.disabled = true;
   forwardButton.disabled = true;
+  archiveButton.disabled = true;
+  deleteButton.disabled = true;
+  flagButton.disabled = true;
   providerStatus.textContent = 'Provider unavailable';
   messageList.textContent = 'Unable to initialize the configured development mail provider.';
 });
