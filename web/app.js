@@ -56,6 +56,11 @@ function formatBytes(value) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function optionalComposeField(formData, name) {
+  const value = String(formData.get(name) ?? '').trim();
+  return value || null;
+}
+
 function renderMailboxes(mailboxes) {
   mailboxList.replaceChildren(
     ...mailboxes.map((mailbox, index) => {
@@ -319,8 +324,12 @@ composeForm.addEventListener('submit', async (event) => {
   }
 
   const formData = new FormData(composeForm);
+  const cc = optionalComposeField(formData, 'cc');
+  const bcc = optionalComposeField(formData, 'bcc');
   const payload = {
     to: formData.get('to'),
+    ...(cc ? { cc } : {}),
+    ...(bcc ? { bcc } : {}),
     subject: formData.get('subject'),
     body: formData.get('body'),
     ...(selectedComposeAttachments.length > 0 ? { attachments: selectedComposeAttachments } : {}),
