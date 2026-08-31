@@ -100,7 +100,15 @@
 
         <label>
           <span>To</span>
-          <input name="to" type="email" required placeholder="recipient@example.com" />
+          <input name="to" type="email" multiple required placeholder="recipient@example.com" autocomplete="off" />
+        </label>
+        <label>
+          <span>Cc</span>
+          <input name="cc" type="email" multiple placeholder="Optional copied recipients" autocomplete="off" />
+        </label>
+        <label>
+          <span>Bcc</span>
+          <input name="bcc" type="email" multiple placeholder="Optional hidden recipients" autocomplete="off" />
         </label>
         <label>
           <span>Subject</span>
