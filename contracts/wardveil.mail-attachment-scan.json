@@ -153,5 +153,32 @@
     "credentials_or_provider_tokens_in_security_records": false,
     "data_minimization_required": true
   },
+  "runtime_acceptance_tooling": {
+    "implemented": true,
+    "command": "scripts/run-mail-wardveil-runtime-acceptance.mjs",
+    "exact_mail_revision_required": true,
+    "exact_wardveil_revision_required": true,
+    "live_wardveil_scan_required": true,
+    "incoming_download_clean_control": true,
+    "incoming_download_eicar_control": true,
+    "outgoing_send_clean_control": true,
+    "outgoing_send_eicar_control": true,
+    "outgoing_draft_clean_control": true,
+    "outgoing_draft_eicar_control": true,
+    "uses_real_mail_application_services": true,
+    "provider_boundary": "controlled_non_network_provider",
+    "real_gmail_provider_execution_accepted": false,
+    "caller_secret_regular_non_symlink_required": true,
+    "caller_secret_root_owned_required": true,
+    "caller_secret_allowed_modes": [
+      "0400",
+      "0600"
+    ],
+    "sanitized_evidence_excludes_raw_attachment_content": true,
+    "sanitized_evidence_excludes_provider_credentials": true,
+    "sanitized_evidence_excludes_wardveil_caller_secret": true,
+    "successful_tool_run_grants_overall_production_acceptance": false,
+    "target_environment_execution_status": "pending"
+  },
   "production_runtime_status": "unaccepted"
 }
