@@ -1,6 +1,6 @@
 import { normalizeCapabilities } from '../mail-provider.js';
 
-const demoMessages = [
+const initialDemoMessages = [
   {
     id: 'welcome-1',
     sender: 'GoreeCloud Mail',
@@ -54,40 +54,57 @@ const demoMessages = [
   },
 ];
 
+const DEMO_MAILBOXES = Object.freeze([
+  ['inbox', 'Inbox'],
+  ['starred', 'Starred'],
+  ['sent', 'Sent'],
+  ['drafts', 'Drafts'],
+  ['archive', 'Archive'],
+  ['trash', 'Trash'],
+]);
+
 export class DemoMailProvider {
+  constructor() {
+    this.messages = structuredClone(initialDemoMessages);
+    this.mailboxByMessageId = new Map(this.messages.map((message) => [message.id, 'inbox']));
+  }
+
   async authenticate() {
     return { authenticated: true, account: 'demo@goreecloud.local' };
   }
 
   async listMailboxes() {
-    return [
-      { id: 'inbox', name: 'Inbox', unread: 1 },
-      { id: 'starred', name: 'Starred', unread: 0 },
-      { id: 'sent', name: 'Sent', unread: 0 },
-      { id: 'drafts', name: 'Drafts', unread: 0 },
-      { id: 'archive', name: 'Archive', unread: 0 },
-      { id: 'trash', name: 'Trash', unread: 0 },
-    ];
+    return DEMO_MAILBOXES.map(([id, name]) => ({
+      id,
+      name,
+      unread: this.messagesForMailbox(id).filter((message) => message.unread).length,
+    }));
+  }
+
+  messagesForMailbox(mailboxId = 'inbox') {
+    const normalizedMailbox = String(mailboxId ?? '').trim().toLowerCase();
+    if (normalizedMailbox === 'starred') {
+      return this.messages.filter((message) =>
+        message.flagged && this.mailboxByMessageId.get(message.id) !== 'trash',
+      );
+    }
+    if (!DEMO_MAILBOXES.some(([id]) => id === normalizedMailbox)) return [];
+    if (normalizedMailbox === 'sent' || normalizedMailbox === 'drafts') return [];
+    return this.messages.filter((message) => this.mailboxByMessageId.get(message.id) === normalizedMailbox);
   }
 
   async listMessages(mailboxId = 'inbox') {
-    const normalizedMailbox = String(mailboxId ?? '').trim().toLowerCase();
-    const selected = normalizedMailbox === 'inbox'
-      ? demoMessages
-      : normalizedMailbox === 'starred'
-        ? demoMessages.filter((message) => message.flagged)
-        : [];
-    return structuredClone(selected);
+    return structuredClone(this.messagesForMailbox(mailboxId));
   }
 
   async getMessage(id) {
-    return structuredClone(demoMessages.find((message) => message.id === id) ?? null);
+    return structuredClone(this.messages.find((message) => message.id === id) ?? null);
   }
 
   async search(query) {
     const normalizedQuery = query.trim().toLowerCase();
     return structuredClone(
-      demoMessages.filter((message) =>
+      this.messages.filter((message) =>
         `${message.sender} ${message.address} ${message.subject} ${message.preview} ${message.body}`
           .toLowerCase()
           .includes(normalizedQuery),
@@ -108,19 +125,25 @@ export class DemoMailProvider {
   }
 
   async move(id, mailboxId) {
-    return { id, mailboxId };
+    const normalizedMailbox = String(mailboxId ?? '').trim().toLowerCase();
+    if (this.mailboxByMessageId.has(id) && DEMO_MAILBOXES.some(([candidate]) => candidate === normalizedMailbox)) {
+      this.mailboxByMessageId.set(id, normalizedMailbox);
+    }
+    return { id, mailboxId: normalizedMailbox };
   }
 
   async archive(id) {
+    if (this.mailboxByMessageId.has(id)) this.mailboxByMessageId.set(id, 'archive');
     return { id, archived: true };
   }
 
   async remove(id) {
+    if (this.mailboxByMessageId.has(id)) this.mailboxByMessageId.set(id, 'trash');
     return { id, removed: true };
   }
 
   async flag(id, flagged = true) {
-    const message = demoMessages.find((candidate) => candidate.id === id);
+    const message = this.messages.find((candidate) => candidate.id === id);
     if (message) message.flagged = Boolean(flagged);
     return { id, flagged: Boolean(flagged) };
   }
