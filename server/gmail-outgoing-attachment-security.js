@@ -39,7 +39,7 @@ export class GmailOutgoingAttachmentSecurityGate {
     this.persistProvenanceFn = persistProvenanceFn;
   }
 
-  async authorize({ accountId, message, action, now = Date.now() } = {}) {
+  async authorize({ accountId, message, action, now = null } = {}) {
     const attachments = Array.isArray(message?.attachments) ? message.attachments : [];
     if (attachments.length === 0) {
       return Object.freeze({ message, scans: Object.freeze([]), provenance: null });
@@ -47,7 +47,7 @@ export class GmailOutgoingAttachmentSecurityGate {
     if (action !== 'send' && action !== 'draft') {
       throw new TypeError('outgoing attachment action must be send or draft');
     }
-    if (!Number.isFinite(now)) throw new TypeError('now must be a finite timestamp');
+    if (now !== null && !Number.isFinite(now)) throw new TypeError('now must be a finite timestamp when provided');
 
     // Preserve one validation authority for all Gmail composition bounds and attachment syntax.
     buildGmailRawMessage(message);
@@ -83,10 +83,11 @@ export class GmailOutgoingAttachmentSecurityGate {
         });
       }
 
+      const validationNow = now === null ? Date.now() : now;
       const scan = requireCurrentCleanOutgoingScan(envelope, {
         resourceId,
         digestSha256,
-        now,
+        now: validationNow,
       });
       scans.push(scan);
       securedAttachments.push(Object.freeze({
