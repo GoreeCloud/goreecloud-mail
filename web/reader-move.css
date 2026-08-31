@@ -1,0 +1,58 @@
+.reader-move-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.46);
+}
+
+.reader-move-control[hidden] {
+  display: none;
+}
+
+.reader-move-control select {
+  min-height: 36px;
+  max-width: 170px;
+  border: 0;
+  border-radius: 11px;
+  padding: 0 9px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 650;
+  outline: none;
+}
+
+.reader-move-control select:focus-visible {
+  box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.15);
+}
+
+.reader-move-control .reader-action {
+  min-height: 36px;
+  border-radius: 11px;
+}
+
+@media (max-width: 1180px) {
+  .reader-move-control {
+    width: 100%;
+  }
+
+  .reader-move-control select {
+    flex: 1;
+    max-width: none;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .reader-move-control {
+    background: rgba(255, 255, 255, 0.035);
+  }
+
+  .reader-move-control select option {
+    background: #19212e;
+    color: #edf2f7;
+  }
+}
