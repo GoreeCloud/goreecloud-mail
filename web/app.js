@@ -1,5 +1,6 @@
 import { materializeComposeAttachments } from './compose-attachments.js';
 import { buildForwardCompose, buildReplyCompose } from './compose-context.js';
+import { filterLoadedMailboxMessages, mailboxName } from './mailbox-view.js';
 import { readMailProviderRuntime } from './provider-runtime.js';
 import { presentAttachmentSecurity } from './security/attachment-security-presentation.js';
 
@@ -14,6 +15,7 @@ const runtime = runtimeResult.runtime ?? null;
 const provider = runtime?.provider ?? null;
 
 const mailboxList = document.querySelector('#mailboxList');
+const mailboxTitle = document.querySelector('#mailboxTitle');
 const messageList = document.querySelector('#messageList');
 const searchInput = document.querySelector('#searchInput');
 const composeButton = document.querySelector('#composeButton');
@@ -41,10 +43,14 @@ const replyButton = document.querySelector('#replyButton');
 const forwardButton = document.querySelector('#forwardButton');
 const flagButton = document.querySelector('#flagButton');
 
+let mailboxes = [];
 let messages = [];
+let selectedMailboxId = 'inbox';
 let selectedMessageId = null;
 let selectedMessage = null;
 let selectedComposeAttachments = [];
+let mailboxLoadGeneration = 0;
+let messageLoadGeneration = 0;
 
 function formatDate(value) {
   return new Intl.DateTimeFormat(undefined, {
@@ -101,14 +107,14 @@ function openCompose({
   if (focusTarget instanceof HTMLElement) focusTarget.focus();
 }
 
-function renderMailboxes(mailboxes) {
+function renderMailboxes() {
   mailboxList.replaceChildren(
-    ...mailboxes.map((mailbox, index) => {
+    ...mailboxes.map((mailbox) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'mailbox-button';
       button.dataset.mailboxId = mailbox.id;
-      if (index === 0) button.setAttribute('aria-current', 'page');
+      button.setAttribute('aria-current', mailbox.id === selectedMailboxId ? 'page' : 'false');
 
       const label = document.createElement('span');
       label.textContent = mailbox.name;
@@ -123,11 +129,28 @@ function renderMailboxes(mailboxes) {
   );
 }
 
+function setMailboxControlsDisabled(disabled) {
+  for (const button of mailboxList.querySelectorAll('[data-mailbox-id]')) {
+    button.disabled = disabled;
+  }
+}
+
+function clearReader() {
+  messageLoadGeneration += 1;
+  selectedMessageId = null;
+  selectedMessage = null;
+  messageReader.hidden = true;
+  emptyReader.hidden = false;
+  readerAttachments.hidden = true;
+  readerAttachments.replaceChildren();
+  readerAttachmentStatus.textContent = '';
+}
+
 function renderMessages(items) {
   if (items.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'message-preview';
-    empty.textContent = 'No messages found.';
+    empty.textContent = 'No messages in this mailbox view.';
     messageList.replaceChildren(empty);
     return;
   }
@@ -164,6 +187,10 @@ function renderMessages(items) {
       return card;
     }),
   );
+}
+
+function renderCurrentMailboxSearch() {
+  renderMessages(filterLoadedMailboxMessages(messages, searchInput.value));
 }
 
 function renderAttachments(attachments = []) {
@@ -263,8 +290,9 @@ function renderComposeAttachmentPreview(files, materialized) {
 }
 
 async function openMessage(id) {
+  const generation = ++messageLoadGeneration;
   const message = await provider.getMessage(id);
-  if (!message) return;
+  if (generation !== messageLoadGeneration || !message || !messages.some((item) => item.id === id)) return;
 
   selectedMessageId = id;
   selectedMessage = message;
@@ -280,7 +308,43 @@ async function openMessage(id) {
   flagButton.textContent = message.flagged ? '★' : '☆';
   flagButton.setAttribute('aria-pressed', String(message.flagged));
   renderAttachments(message.attachments);
-  renderMessages(messages);
+  renderCurrentMailboxSearch();
+}
+
+async function loadMailbox(mailboxId) {
+  if (!provider || !mailboxes.some((mailbox) => mailbox.id === mailboxId)) return;
+  if (mailboxId === selectedMailboxId && messages.length > 0) return;
+
+  const generation = ++mailboxLoadGeneration;
+  const previousMailboxId = selectedMailboxId;
+  const previousMessages = messages;
+  searchInput.value = '';
+  clearReader();
+  setMailboxControlsDisabled(true);
+  messageList.textContent = `Loading ${mailboxName(mailboxes, mailboxId)}…`;
+
+  try {
+    const loadedMessages = await provider.listMessages(mailboxId);
+    if (generation !== mailboxLoadGeneration) return;
+    if (!Array.isArray(loadedMessages)) throw new TypeError('Mail provider returned an invalid message collection.');
+
+    selectedMailboxId = mailboxId;
+    messages = loadedMessages;
+    mailboxTitle.textContent = mailboxName(mailboxes, selectedMailboxId);
+    renderMailboxes();
+    renderMessages(messages);
+  } catch (error) {
+    if (generation !== mailboxLoadGeneration) return;
+    selectedMailboxId = previousMailboxId;
+    messages = previousMessages;
+    mailboxTitle.textContent = mailboxName(mailboxes, selectedMailboxId);
+    renderMailboxes();
+    renderMessages(messages);
+    providerStatus.textContent = `${runtime.label} · mailbox read failed`;
+    console.error('Unable to load the selected GoreeCloud Mail mailbox.', error);
+  } finally {
+    if (generation === mailboxLoadGeneration) setMailboxControlsDisabled(false);
+  }
 }
 
 async function initialize() {
@@ -291,14 +355,23 @@ async function initialize() {
   composeDraftButton.textContent = runtime.mode === 'gateway' ? 'Save draft' : 'Save demo draft';
   composeSendButton.textContent = runtime.mode === 'gateway' ? 'Send message' : 'Send demo message';
   await provider.authenticate();
-  const [mailboxes, loadedMessages] = await Promise.all([
-    provider.listMailboxes(),
-    provider.listMessages('inbox'),
-  ]);
-  messages = loadedMessages;
-  renderMailboxes(mailboxes);
-  renderMessages(messages);
+  const loadedMailboxes = await provider.listMailboxes();
+  if (!Array.isArray(loadedMailboxes) || loadedMailboxes.length === 0) {
+    throw new Error('Mail provider returned no readable mailboxes.');
+  }
+  mailboxes = loadedMailboxes;
+  selectedMailboxId = mailboxes.some((mailbox) => mailbox.id === 'inbox') ? 'inbox' : mailboxes[0].id;
+  messages = [];
+  mailboxTitle.textContent = mailboxName(mailboxes, selectedMailboxId);
+  renderMailboxes();
+  await loadMailbox(selectedMailboxId);
 }
+
+mailboxList.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-mailbox-id]');
+  if (!button || button.disabled) return;
+  void loadMailbox(button.dataset.mailboxId);
+});
 
 messageList.addEventListener('click', async (event) => {
   const card = event.target.closest('[data-message-id]');
@@ -313,15 +386,7 @@ readerAttachments.addEventListener('click', (event) => {
   readerAttachmentStatus.textContent = `${actionLabel} is security-authorized for this evidence state, but browser attachment retrieval remains outside this development slice.`;
 });
 
-searchInput.addEventListener('input', async () => {
-  if (!provider) return;
-  const query = searchInput.value.trim();
-  if (!query) {
-    renderMessages(messages);
-    return;
-  }
-  renderMessages(await provider.search(query));
-});
+searchInput.addEventListener('input', () => renderCurrentMailboxSearch());
 
 composeButton.addEventListener('click', () => openCompose());
 
@@ -424,12 +489,18 @@ flagButton.addEventListener('click', async () => {
   const current = messages.find((message) => message.id === selectedMessageId);
   if (!current) return;
 
-  current.flagged = !current.flagged;
-  await provider.flag(selectedMessageId, current.flagged);
-  flagButton.textContent = current.flagged ? '★' : '☆';
-  flagButton.setAttribute('aria-pressed', String(current.flagged));
-  if (selectedMessage) selectedMessage.flagged = current.flagged;
-  renderMessages(messages);
+  const nextFlagged = !current.flagged;
+  await provider.flag(selectedMessageId, nextFlagged);
+  current.flagged = nextFlagged;
+  flagButton.textContent = nextFlagged ? '★' : '☆';
+  flagButton.setAttribute('aria-pressed', String(nextFlagged));
+  if (selectedMessage) selectedMessage.flagged = nextFlagged;
+
+  if (selectedMailboxId === 'starred' && !nextFlagged) {
+    messages = messages.filter((message) => message.id !== selectedMessageId);
+    clearReader();
+  }
+  renderCurrentMailboxSearch();
 });
 
 initialize().catch((error) => {
