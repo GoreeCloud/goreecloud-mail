@@ -13,7 +13,7 @@
 }
 
 .mailbox-view-filter {
-  min-height: 42px;
+  min-height: 48px;
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -33,7 +33,7 @@
 }
 
 .mailbox-view-filter select {
-  min-height: 36px;
+  min-height: 48px;
   max-width: 168px;
   border: 0;
   outline: 0;
