@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const css = readFileSync(new URL('../web/unread-filter.css', import.meta.url), 'utf8');
+const control = readFileSync(new URL('../web/unread-filter-control.js', import.meta.url), 'utf8');
 
 test('loaded message view filter keeps the Glaze UI 2.2 interaction floors', () => {
   assert.match(css, /:root\s*\{[^}]*--mailbox-view-filter-target:\s*48px;/s);
@@ -38,4 +39,13 @@ test('loaded message view filter remains explicit in forced colors', () => {
   assert.match(css, /@media \(forced-colors:\s*active\)\s*\{/);
   assert.match(css, /\.mailbox-view-filter\s*\{[^}]*background:\s*Canvas;[^}]*color:\s*CanvasText;[^}]*border-color:\s*CanvasText;/s);
   assert.match(css, /\.mailbox-view-filter:focus-within\s*\{[^}]*border-color:\s*Highlight;[^}]*box-shadow:\s*0 0 0 2px Highlight;/s);
+});
+
+test('loaded message view filter exposes one controlled list and atomic polite status semantics', () => {
+  assert.match(control, /filterSelect\.setAttribute\('aria-controls',\s*'messageList'\)/);
+  assert.match(control, /filterSelect\.setAttribute\('aria-describedby',\s*'messageViewFilterStatus'\)/);
+  assert.match(control, /status\.setAttribute\('role',\s*'status'\)/);
+  assert.match(control, /status\.setAttribute\('aria-live',\s*'polite'\)/);
+  assert.match(control, /status\.setAttribute\('aria-atomic',\s*'true'\)/);
+  assert.match(control, /status\.setAttribute\('aria-relevant',\s*'text'\)/);
 });
