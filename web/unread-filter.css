@@ -68,3 +68,21 @@
     background: rgba(22, 30, 43, 0.72);
   }
 }
+
+@media (forced-colors: active) {
+  .mailbox-view-filter {
+    background: Canvas;
+    color: CanvasText;
+    border-color: CanvasText;
+  }
+
+  .mailbox-view-filter > span,
+  .mailbox-view-filter select {
+    color: CanvasText;
+  }
+
+  .mailbox-view-filter:focus-within {
+    border-color: Highlight;
+    box-shadow: 0 0 0 2px Highlight;
+  }
+}
