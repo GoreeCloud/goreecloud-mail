@@ -126,4 +126,4 @@ Source validation is not production deployment, real-provider acceptance, signed
 
 ## License
 
-License selection is pending final project approval.
+GoreeCloud Mail is licensed under the GNU Affero General Public License, version 3 only (`AGPL-3.0-only`). See `LICENSE`.
