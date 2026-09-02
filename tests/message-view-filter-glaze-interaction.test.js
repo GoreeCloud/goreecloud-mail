@@ -12,6 +12,19 @@ test('loaded message view filter keeps the Glaze UI 2.2 interaction floors', () 
   assert.doesNotMatch(css, /pointer:\s*coarse/);
 });
 
+test('loaded message view filter has bounded narrow-width and zoom reflow rules', () => {
+  assert.match(css, /\.mailbox-view-controls\s*\{[^}]*flex-wrap:\s*wrap;/s);
+  assert.match(css, /\.mailbox-view-controls \.search-field\s*\{[^}]*min-width:\s*0;/s);
+  assert.match(css, /\.mailbox-view-filter\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;[^}]*flex:\s*0 1 auto;/s);
+  assert.match(css, /\.mailbox-view-filter select\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;[^}]*flex:\s*1 1 auto;/s);
+  assert.doesNotMatch(css, /max-width:\s*168px/);
+
+  assert.match(css, /@media \(max-width:\s*720px\)\s*\{[\s\S]*?\.mailbox-view-controls\s*\{[^}]*width:\s*100%;[^}]*align-items:\s*stretch;[^}]*flex-direction:\s*column;/s);
+  assert.match(css, /@media \(max-width:\s*720px\)\s*\{[\s\S]*?\.mailbox-view-controls \.search-field,\s*\.mailbox-view-filter\s*\{[^}]*width:\s*100%;/s);
+  assert.match(css, /@media \(max-width:\s*360px\)\s*\{[\s\S]*?\.mailbox-view-filter\s*\{[^}]*align-items:\s*stretch;[^}]*flex-direction:\s*column;/s);
+  assert.match(css, /@media \(max-width:\s*360px\)\s*\{[\s\S]*?\.mailbox-view-filter select\s*\{[^}]*width:\s*100%;/s);
+});
+
 test('loaded message view filter provides reduced-transparency and increased-contrast fallbacks', () => {
   assert.match(css, /@media \(prefers-reduced-transparency:\s*reduce\)\s*\{/);
   assert.match(css, /\.mailbox-view-filter\s*\{[^}]*background:\s*#ffffff;/s);
