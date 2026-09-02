@@ -1,3 +1,11 @@
+:root {
+  --mailbox-view-filter-target: 48px;
+}
+
+html[data-glaze-touch-assistance="true"] {
+  --mailbox-view-filter-target: 56px;
+}
+
 .mailbox-view-controls {
   min-width: 0;
   width: min(72%, 620px);
@@ -13,7 +21,7 @@
 }
 
 .mailbox-view-filter {
-  min-height: 48px;
+  min-height: var(--mailbox-view-filter-target);
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -33,7 +41,7 @@
 }
 
 .mailbox-view-filter select {
-  min-height: 48px;
+  min-height: var(--mailbox-view-filter-target);
   max-width: 168px;
   border: 0;
   outline: 0;
@@ -66,6 +74,29 @@
 @media (prefers-color-scheme: dark) {
   .mailbox-view-filter {
     background: rgba(22, 30, 43, 0.72);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .mailbox-view-filter {
+    background: #ffffff;
+  }
+}
+
+@media (prefers-color-scheme: dark) and (prefers-reduced-transparency: reduce) {
+  .mailbox-view-filter {
+    background: #161e2b;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .mailbox-view-filter {
+    border-width: 2px;
+    border-color: currentColor;
+  }
+
+  .mailbox-view-filter:focus-within {
+    box-shadow: 0 0 0 3px currentColor;
   }
 }
 
