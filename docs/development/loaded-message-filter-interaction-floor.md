@@ -4,7 +4,7 @@ Status: Development
 
 The rendered loaded-message view filter now meets the current Glaze UI 2.1 general interaction floor on both the visible filter surface and its native `select` control.
 
-`web/unread-filter.css` raises the filter wrapper and select from the earlier 42/36 px values to a 48 px minimum. A repository test locks both declarations so later styling changes cannot silently regress this bounded target-size requirement.
+`web/unread-filter.css` raises the filter wrapper and select from the earlier 42/36 px values to a 48 px minimum. The same bounded surface now defines an explicit Forced Colors presentation using the platform `Canvas`, `CanvasText`, and `Highlight` system colors so the control does not depend on translucent Glaze colors when forced-color mode is active. Repository tests lock both the 48 px declarations and the forced-color focus/presentation rules.
 
 ## Authority boundary
 
@@ -12,4 +12,4 @@ This is a presentation/accessibility correction only. It performs no provider se
 
 ## Acceptance boundary
 
-Meeting this one Glaze UI 2.1 interaction-floor requirement does not establish complete Mail Glaze conformance, Touch Assistance 56 px behavior, large-text/reflow acceptance, forced colors, increased contrast, reduced transparency, screen-reader acceptance, representative-device acceptance, provider production acceptance, release, or Stable qualification.
+The source rules and regression coverage establish this bounded interaction-floor and Forced Colors behavior only. They do not establish complete Mail Glaze conformance, Touch Assistance 56 px behavior, large-text/reflow acceptance, Increased Contrast, Reduced Transparency, screen-reader acceptance, representative-device acceptance, provider production acceptance, release, or Stable qualification.
