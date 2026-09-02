@@ -26,6 +26,7 @@ if (topbar && searchField && messageList) {
   for (const [value, label] of [
     [MESSAGE_VIEW_FILTER.ALL, 'All loaded'],
     [MESSAGE_VIEW_FILTER.UNREAD, 'Unread'],
+    [MESSAGE_VIEW_FILTER.READ, 'Read'],
     [MESSAGE_VIEW_FILTER.FLAGGED, 'Flagged'],
     [MESSAGE_VIEW_FILTER.UNREAD_FLAGGED, 'Unread + flagged'],
   ]) {
