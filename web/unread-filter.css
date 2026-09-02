@@ -13,16 +13,20 @@ html[data-glaze-touch-assistance="true"] {
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .mailbox-view-controls .search-field {
+  min-width: 0;
   width: min(100%, 390px);
   flex: 1 1 260px;
 }
 
 .mailbox-view-filter {
+  min-width: 0;
   min-height: var(--mailbox-view-filter-target);
-  flex: 0 0 auto;
+  max-width: 100%;
+  flex: 0 1 auto;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -38,11 +42,14 @@ html[data-glaze-touch-assistance="true"] {
 .mailbox-view-filter > span {
   color: var(--muted);
   font-weight: 700;
+  flex: 0 0 auto;
 }
 
 .mailbox-view-filter select {
+  min-width: 0;
   min-height: var(--mailbox-view-filter-target);
-  max-width: 168px;
+  max-width: 100%;
+  flex: 1 1 auto;
   border: 0;
   outline: 0;
   background: transparent;
@@ -60,14 +67,29 @@ html[data-glaze-touch-assistance="true"] {
   .mailbox-view-controls {
     width: 100%;
     align-items: stretch;
+    flex-direction: column;
   }
 
-  .mailbox-view-controls .search-field {
+  .mailbox-view-controls .search-field,
+  .mailbox-view-filter {
     width: 100%;
   }
 
   .mailbox-view-filter {
     justify-content: space-between;
+  }
+}
+
+@media (max-width: 360px) {
+  .mailbox-view-filter {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 2px;
+    padding-block: 6px;
+  }
+
+  .mailbox-view-filter select {
+    width: 100%;
   }
 }
 
