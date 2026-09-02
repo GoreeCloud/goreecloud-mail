@@ -22,10 +22,12 @@ if (topbar && searchField && messageList) {
 
   const filterSelect = document.createElement('select');
   filterSelect.id = 'messageViewFilter';
+  filterSelect.setAttribute('aria-controls', 'messageList');
   filterSelect.setAttribute('aria-describedby', 'messageViewFilterStatus');
   for (const [value, label] of [
     [MESSAGE_VIEW_FILTER.ALL, 'All loaded'],
     [MESSAGE_VIEW_FILTER.UNREAD, 'Unread'],
+    [MESSAGE_VIEW_FILTER.READ, 'Read'],
     [MESSAGE_VIEW_FILTER.FLAGGED, 'Flagged'],
     [MESSAGE_VIEW_FILTER.UNREAD_FLAGGED, 'Unread + flagged'],
   ]) {
@@ -40,6 +42,8 @@ if (topbar && searchField && messageList) {
   status.className = 'sr-only';
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
+  status.setAttribute('aria-atomic', 'true');
+  status.setAttribute('aria-relevant', 'text');
 
   filterLabel.append(filterCaption, filterSelect);
   controls.append(searchField, filterLabel, status);

@@ -1,3 +1,11 @@
+:root {
+  --mailbox-view-filter-target: 48px;
+}
+
+html[data-glaze-touch-assistance="true"] {
+  --mailbox-view-filter-target: 56px;
+}
+
 .mailbox-view-controls {
   min-width: 0;
   width: min(72%, 620px);
@@ -5,16 +13,20 @@
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .mailbox-view-controls .search-field {
+  min-width: 0;
   width: min(100%, 390px);
   flex: 1 1 260px;
 }
 
 .mailbox-view-filter {
-  min-height: 42px;
-  flex: 0 0 auto;
+  min-width: 0;
+  min-height: var(--mailbox-view-filter-target);
+  max-width: 100%;
+  flex: 0 1 auto;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -30,11 +42,14 @@
 .mailbox-view-filter > span {
   color: var(--muted);
   font-weight: 700;
+  flex: 0 0 auto;
 }
 
 .mailbox-view-filter select {
-  min-height: 36px;
-  max-width: 168px;
+  min-width: 0;
+  min-height: var(--mailbox-view-filter-target);
+  max-width: 100%;
+  flex: 1 1 auto;
   border: 0;
   outline: 0;
   background: transparent;
@@ -52,9 +67,11 @@
   .mailbox-view-controls {
     width: 100%;
     align-items: stretch;
+    flex-direction: column;
   }
 
-  .mailbox-view-controls .search-field {
+  .mailbox-view-controls .search-field,
+  .mailbox-view-filter {
     width: 100%;
   }
 
@@ -63,8 +80,62 @@
   }
 }
 
+@media (max-width: 360px) {
+  .mailbox-view-filter {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 2px;
+    padding-block: 6px;
+  }
+
+  .mailbox-view-filter select {
+    width: 100%;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   .mailbox-view-filter {
     background: rgba(22, 30, 43, 0.72);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .mailbox-view-filter {
+    background: #ffffff;
+  }
+}
+
+@media (prefers-color-scheme: dark) and (prefers-reduced-transparency: reduce) {
+  .mailbox-view-filter {
+    background: #161e2b;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .mailbox-view-filter {
+    border-width: 2px;
+    border-color: currentColor;
+  }
+
+  .mailbox-view-filter:focus-within {
+    box-shadow: 0 0 0 3px currentColor;
+  }
+}
+
+@media (forced-colors: active) {
+  .mailbox-view-filter {
+    background: Canvas;
+    color: CanvasText;
+    border-color: CanvasText;
+  }
+
+  .mailbox-view-filter > span,
+  .mailbox-view-filter select {
+    color: CanvasText;
+  }
+
+  .mailbox-view-filter:focus-within {
+    border-color: Highlight;
+    box-shadow: 0 0 0 2px Highlight;
   }
 }

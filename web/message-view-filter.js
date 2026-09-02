@@ -1,6 +1,7 @@
 export const MESSAGE_VIEW_FILTER = Object.freeze({
   ALL: 'all',
   UNREAD: 'unread',
+  READ: 'read',
   FLAGGED: 'flagged',
   UNREAD_FLAGGED: 'unread-flagged',
 });
@@ -18,6 +19,8 @@ export function shouldShowLoadedMessage({ filter, unread, flagged }) {
   switch (normalizeMessageViewFilter(filter)) {
     case MESSAGE_VIEW_FILTER.UNREAD:
       return unread === true;
+    case MESSAGE_VIEW_FILTER.READ:
+      return unread === false;
     case MESSAGE_VIEW_FILTER.FLAGGED:
       return flagged === true;
     case MESSAGE_VIEW_FILTER.UNREAD_FLAGGED:
@@ -35,6 +38,8 @@ export function messageViewFilterStatus({ filter, visibleCount }) {
   switch (normalized) {
     case MESSAGE_VIEW_FILTER.UNREAD:
       return `Showing ${count} unread ${noun} from the current loaded mailbox view.`;
+    case MESSAGE_VIEW_FILTER.READ:
+      return `Showing ${count} read ${noun} from the current loaded mailbox view.`;
     case MESSAGE_VIEW_FILTER.FLAGGED:
       return `Showing ${count} flagged ${noun} from the current loaded mailbox view.`;
     case MESSAGE_VIEW_FILTER.UNREAD_FLAGGED:
