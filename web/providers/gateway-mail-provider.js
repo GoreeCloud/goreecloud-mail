@@ -21,6 +21,7 @@ function requireOpaqueIdentifier(value, label) {
 
 export class GatewayMailProvider {
   constructor({ accountId, gateway }) {
+    if (!accountId) throw new TypeError('accountId is required.');
     this.accountId = requireOpaqueIdentifier(accountId, 'accountId');
     if (!gateway || typeof gateway.request !== 'function') {
       throw new TypeError('gateway with request() is required.');
