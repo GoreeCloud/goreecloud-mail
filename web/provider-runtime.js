@@ -28,9 +28,8 @@ export function createMailProviderRuntime({
     throw new Error('Unsupported GoreeCloud Mail provider mode.');
   }
 
-  const normalizedAccountId = String(accountId).trim();
-  if (!normalizedAccountId) {
-    throw new Error('Authenticated gateway mode requires a non-secret account identifier.');
+  if (typeof accountId !== 'string' || !accountId || accountId !== accountId.trim()) {
+    throw new Error('Authenticated gateway mode requires an exact non-secret account identifier.');
   }
   if (typeof fetchImpl !== 'function') {
     throw new Error('Authenticated gateway mode requires the browser fetch implementation.');
@@ -39,7 +38,7 @@ export function createMailProviderRuntime({
   const normalizedGatewayBase = normalizeSameOriginGatewayBase(gatewayBaseUrl);
   const gateway = new ProviderGateway({ baseUrl: normalizedGatewayBase, fetchImpl });
   return Object.freeze({
-    provider: validateMailProvider(new GatewayMailProvider({ accountId: normalizedAccountId, gateway })),
+    provider: validateMailProvider(new GatewayMailProvider({ accountId, gateway })),
     mode: 'gateway',
     label: 'Authenticated gateway',
     canSendAttachments: true,
