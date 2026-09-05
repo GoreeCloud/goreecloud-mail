@@ -38,6 +38,32 @@ test('gateway mode requires a non-secret account id and same-origin path', () =>
   assert.equal(runtime.canSendAttachments, true);
 });
 
+test('gateway runtime refuses account authority that requires coercion or trimming', () => {
+  const fetchImpl = async () => ({ ok: true, json: async () => ({}) });
+
+  for (const accountId of [' account-1', 'account-1 ', '   ', 42, null]) {
+    assert.throws(
+      () => createMailProviderRuntime({ mode: 'gateway', accountId, fetchImpl }),
+      /account identifier/i,
+    );
+  }
+});
+
+test('gateway runtime preserves exact opaque account identity', () => {
+  const fetchImpl = async () => ({ ok: true, json: async () => ({}) });
+  const runtime = createMailProviderRuntime({
+    mode: 'gateway',
+    accountId: 'account / opaque:one',
+    fetchImpl,
+  });
+
+  assert.equal(runtime.provider.accountId, 'account / opaque:one');
+  assert.equal(
+    runtime.provider.path('/session'),
+    '/accounts/account%20%2F%20opaque%3Aone/session',
+  );
+});
+
 test('same-origin gateway normalization remains root-relative and bounded', () => {
   assert.equal(normalizeSameOriginGatewayBase('/api/mail/'), '/api/mail');
   assert.equal(normalizeSameOriginGatewayBase('/'), '/');
