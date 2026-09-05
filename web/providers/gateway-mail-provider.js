@@ -1,13 +1,31 @@
 import { normalizeCapabilities } from '../mail-provider.js';
 
+const MAX_PROVIDER_IDENTIFIER_LENGTH = 512;
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/u;
+
+function requireOpaqueIdentifier(value, label) {
+  if (typeof value !== 'string') {
+    throw new TypeError(`${label} must be a string.`);
+  }
+  if (!value || value !== value.trim()) {
+    throw new TypeError(`${label} must use an exact non-blank canonical value.`);
+  }
+  if (value.length > MAX_PROVIDER_IDENTIFIER_LENGTH) {
+    throw new TypeError(`${label} is too long.`);
+  }
+  if (CONTROL_CHARACTERS.test(value)) {
+    throw new TypeError(`${label} must not contain control characters.`);
+  }
+  return value;
+}
+
 export class GatewayMailProvider {
   constructor({ accountId, gateway }) {
-    if (!accountId) throw new TypeError('accountId is required.');
+    this.accountId = requireOpaqueIdentifier(accountId, 'accountId');
     if (!gateway || typeof gateway.request !== 'function') {
       throw new TypeError('gateway with request() is required.');
     }
 
-    this.accountId = accountId;
     this.gateway = gateway;
   }
 
@@ -24,11 +42,15 @@ export class GatewayMailProvider {
   }
 
   listMessages(mailboxId = 'inbox') {
-    return this.gateway.request(this.path(`/mailboxes/${encodeURIComponent(mailboxId)}/messages`));
+    const scopedMailboxId = requireOpaqueIdentifier(mailboxId, 'mailboxId');
+    return this.gateway.request(
+      this.path(`/mailboxes/${encodeURIComponent(scopedMailboxId)}/messages`),
+    );
   }
 
   getMessage(id) {
-    return this.gateway.request(this.path(`/messages/${encodeURIComponent(id)}`));
+    const scopedMessageId = requireOpaqueIdentifier(id, 'messageId');
+    return this.gateway.request(this.path(`/messages/${encodeURIComponent(scopedMessageId)}`));
   }
 
   search(query) {
@@ -44,33 +66,39 @@ export class GatewayMailProvider {
   }
 
   updateDraft(id, message) {
-    return this.gateway.request(this.path(`/drafts/${encodeURIComponent(id)}`), {
+    const scopedDraftId = requireOpaqueIdentifier(id, 'draftId');
+    return this.gateway.request(this.path(`/drafts/${encodeURIComponent(scopedDraftId)}`), {
       method: 'PUT',
       body: message,
     });
   }
 
   move(id, mailboxId) {
-    return this.gateway.request(this.path(`/messages/${encodeURIComponent(id)}/move`), {
+    const scopedMessageId = requireOpaqueIdentifier(id, 'messageId');
+    const scopedMailboxId = requireOpaqueIdentifier(mailboxId, 'mailboxId');
+    return this.gateway.request(this.path(`/messages/${encodeURIComponent(scopedMessageId)}/move`), {
       method: 'POST',
-      body: { mailboxId },
+      body: { mailboxId: scopedMailboxId },
     });
   }
 
   archive(id) {
-    return this.gateway.request(this.path(`/messages/${encodeURIComponent(id)}/archive`), {
+    const scopedMessageId = requireOpaqueIdentifier(id, 'messageId');
+    return this.gateway.request(this.path(`/messages/${encodeURIComponent(scopedMessageId)}/archive`), {
       method: 'POST',
     });
   }
 
   remove(id) {
-    return this.gateway.request(this.path(`/messages/${encodeURIComponent(id)}`), {
+    const scopedMessageId = requireOpaqueIdentifier(id, 'messageId');
+    return this.gateway.request(this.path(`/messages/${encodeURIComponent(scopedMessageId)}`), {
       method: 'DELETE',
     });
   }
 
   flag(id, flagged = true) {
-    return this.gateway.request(this.path(`/messages/${encodeURIComponent(id)}/flag`), {
+    const scopedMessageId = requireOpaqueIdentifier(id, 'messageId');
+    return this.gateway.request(this.path(`/messages/${encodeURIComponent(scopedMessageId)}/flag`), {
       method: 'PUT',
       body: { flagged },
     });
