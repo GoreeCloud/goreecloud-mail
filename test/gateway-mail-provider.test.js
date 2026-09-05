@@ -62,6 +62,46 @@ test('ProviderGateway preserves bounded trusted-backend provider errors', async 
   );
 });
 
+test('ProviderGateway rejects malformed trusted-backend error fields before public projection', async () => {
+  const invalidErrors = [
+    {
+      code: 'not-a-provider-error-code',
+      message: 'Arbitrary backend error.',
+      retryable: false,
+    },
+    {
+      code: 'invalid-request',
+      message: ' x'.repeat(600),
+      retryable: false,
+    },
+    {
+      code: 'invalid-request',
+      message: 'Malformed\nbackend message',
+      retryable: false,
+    },
+    {
+      code: 'invalid-request',
+      message: 'Looks false but is a string.',
+      retryable: 'false',
+    },
+  ];
+
+  for (const backendError of invalidErrors) {
+    const gateway = new ProviderGateway({
+      fetchImpl: async () => response({ error: backendError }, { status: 400 }),
+    });
+
+    await assert.rejects(
+      gateway.request('/accounts/account-1/messages'),
+      (error) =>
+        error.code === 'invalid-request' &&
+        error.status === 400 &&
+        error.retryable === false &&
+        error.message === 'The provider rejected the request.',
+    );
+  }
+});
+
 test('ProviderGateway normalizes unstructured HTTP failures instead of exposing arbitrary response content', async () => {
   const gateway = new ProviderGateway({
     fetchImpl: async () => ({
