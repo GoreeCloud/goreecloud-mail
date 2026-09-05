@@ -1,6 +1,7 @@
 import { normalizeCapabilities } from '../mail-provider.js';
 
 const MAX_PROVIDER_IDENTIFIER_LENGTH = 512;
+const MAX_SEARCH_QUERY_LENGTH = 4096;
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/u;
 
 function requireOpaqueIdentifier(value, label) {
@@ -15,6 +16,31 @@ function requireOpaqueIdentifier(value, label) {
   }
   if (CONTROL_CHARACTERS.test(value)) {
     throw new TypeError(`${label} must not contain control characters.`);
+  }
+  return value;
+}
+
+function requireSearchQuery(value) {
+  if (typeof value !== 'string') {
+    throw new TypeError('search query must be a string.');
+  }
+  if (!value.trim()) {
+    throw new TypeError('search query must not be blank.');
+  }
+  if (value.length > MAX_SEARCH_QUERY_LENGTH) {
+    throw new TypeError('search query is too long.');
+  }
+  if (CONTROL_CHARACTERS.test(value)) {
+    throw new TypeError('search query must not contain control characters.');
+  }
+  // Preserve the exact ordinary query text. Unlike authority identifiers, leading/trailing spaces
+  // are not silently normalized; they are encoded as supplied after the bounded validation above.
+  return value;
+}
+
+function requireFlagState(value) {
+  if (typeof value !== 'boolean') {
+    throw new TypeError('flagged must be a boolean.');
   }
   return value;
 }
@@ -55,7 +81,8 @@ export class GatewayMailProvider {
   }
 
   search(query) {
-    return this.gateway.request(this.path(`/search?q=${encodeURIComponent(query)}`));
+    const boundedQuery = requireSearchQuery(query);
+    return this.gateway.request(this.path(`/search?q=${encodeURIComponent(boundedQuery)}`));
   }
 
   send(message) {
@@ -99,9 +126,10 @@ export class GatewayMailProvider {
 
   flag(id, flagged = true) {
     const scopedMessageId = requireOpaqueIdentifier(id, 'messageId');
+    const scopedFlagState = requireFlagState(flagged);
     return this.gateway.request(this.path(`/messages/${encodeURIComponent(scopedMessageId)}/flag`), {
       method: 'PUT',
-      body: { flagged },
+      body: { flagged: scopedFlagState },
     });
   }
 
