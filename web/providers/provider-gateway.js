@@ -1,4 +1,12 @@
-import { ProviderError, normalizeProviderError } from './provider-error.js';
+import {
+  ProviderError,
+  PROVIDER_ERROR_CODES,
+  normalizeProviderError,
+} from './provider-error.js';
+
+const MAX_GATEWAY_ERROR_MESSAGE_LENGTH = 1024;
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/u;
+const KNOWN_PROVIDER_ERROR_CODES = new Set(Object.values(PROVIDER_ERROR_CODES));
 
 export class ProviderGateway {
   constructor({ baseUrl = '/api/mail', fetchImpl = globalThis.fetch } = {}) {
@@ -47,11 +55,22 @@ async function readBoundedGatewayError(response) {
     const payload = await response.json();
     const error = payload?.error;
     if (!error || typeof error !== 'object') return null;
-    if (typeof error.code !== 'string' || typeof error.message !== 'string') return null;
+    if (typeof error.code !== 'string' || !KNOWN_PROVIDER_ERROR_CODES.has(error.code)) return null;
+    if (typeof error.message !== 'string') return null;
+    if (
+      !error.message ||
+      error.message !== error.message.trim() ||
+      error.message.length > MAX_GATEWAY_ERROR_MESSAGE_LENGTH ||
+      CONTROL_CHARACTERS.test(error.message)
+    ) {
+      return null;
+    }
+    if (typeof error.retryable !== 'boolean') return null;
+
     return {
       code: error.code,
       message: error.message,
-      retryable: Boolean(error.retryable),
+      retryable: error.retryable,
     };
   } catch {
     return null;
