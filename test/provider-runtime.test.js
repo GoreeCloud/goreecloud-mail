@@ -45,6 +45,20 @@ test('same-origin gateway normalization remains root-relative and bounded', () =
   assert.throws(() => normalizeSameOriginGatewayBase('/api\nmail'), /unsupported/i);
 });
 
+test('gateway base rejects path normalization and encoded path-control forms', () => {
+  for (const base of [
+    '/api/mail/../admin',
+    '/api/./mail',
+    '/api/%2e%2e/admin',
+    '/api/mail%2Fadmin',
+    '/api/mail%5cadmin',
+    '/api/mail%00',
+    '/api\\mail',
+  ]) {
+    assert.throws(() => normalizeSameOriginGatewayBase(base), /canonical path/i);
+  }
+});
+
 test('document metadata selects gateway without accepting browser credentials', () => {
   const values = new Map([
     ['goreecloud-mail-provider', 'gateway'],

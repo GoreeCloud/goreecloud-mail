@@ -6,6 +6,7 @@ import { ProviderGateway } from './providers/provider-gateway.js';
 const PROVIDER_META = 'goreecloud-mail-provider';
 const ACCOUNT_META = 'goreecloud-mail-account';
 const GATEWAY_META = 'goreecloud-mail-gateway';
+const CANONICAL_GATEWAY_ORIGIN = 'https://goreecloud.invalid';
 
 export function createMailProviderRuntime({
   mode = 'demo',
@@ -63,6 +64,26 @@ export function normalizeSameOriginGatewayBase(value) {
   if (base.includes('?') || base.includes('#') || /[\r\n\0]/u.test(base)) {
     throw new Error('Mail gateway base contains unsupported URL components.');
   }
-  const collapsed = base.replace(/\/+$/u, '');
-  return collapsed || '/';
+
+  const collapsed = base.replace(/\/+$/u, '') || '/';
+  if (collapsed.includes('\\') || collapsed.includes('%')) {
+    throw new Error('Mail gateway base must use an unambiguous canonical path.');
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(collapsed, CANONICAL_GATEWAY_ORIGIN);
+  } catch {
+    throw new Error('Mail gateway base must use an unambiguous canonical path.');
+  }
+  if (
+    parsed.origin !== CANONICAL_GATEWAY_ORIGIN ||
+    parsed.pathname !== collapsed ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new Error('Mail gateway base must use an unambiguous canonical path.');
+  }
+
+  return collapsed;
 }
