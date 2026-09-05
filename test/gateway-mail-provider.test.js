@@ -115,6 +115,54 @@ test('GatewayMailProvider encodes account and message identifiers and unwraps ac
   assert.equal(Object.hasOwn(capabilities, 'provider'), false);
 });
 
+test('GatewayMailProvider bounds search input without normalizing ordinary query text', async () => {
+  const calls = [];
+  const provider = new GatewayMailProvider({
+    accountId: 'account-1',
+    gateway: {
+      async request(path, options) {
+        calls.push({ path, options });
+        return { ok: true };
+      },
+    },
+  });
+
+  await provider.search('  subject:hello world  ');
+  assert.equal(
+    calls[0].path,
+    '/accounts/account-1/search?q=%20%20subject%3Ahello%20world%20%20',
+  );
+
+  for (const invalid of [undefined, null, {}, '', '   ', 'subject:test\nfrom:other', 'x'.repeat(4097)]) {
+    assert.throws(() => provider.search(invalid), TypeError);
+  }
+  assert.equal(calls.length, 1);
+});
+
+test('GatewayMailProvider requires an exact boolean flag state before mutation request', async () => {
+  const calls = [];
+  const provider = new GatewayMailProvider({
+    accountId: 'account-1',
+    gateway: {
+      async request(path, options) {
+        calls.push({ path, options });
+        return { ok: true };
+      },
+    },
+  });
+
+  await provider.flag('message-1', false);
+  assert.deepEqual(calls[0], {
+    path: '/accounts/account-1/messages/message-1/flag',
+    options: { method: 'PUT', body: { flagged: false } },
+  });
+
+  for (const invalid of [0, 1, 'false', null, {}]) {
+    assert.throws(() => provider.flag('message-1', invalid), TypeError);
+  }
+  assert.equal(calls.length, 1);
+});
+
 test('GatewayMailProvider still normalizes a direct capability map from compatible gateway implementations', async () => {
   const provider = new GatewayMailProvider({
     accountId: 'account-1',
