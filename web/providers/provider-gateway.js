@@ -6,7 +6,13 @@ import {
 
 const MAX_GATEWAY_ERROR_MESSAGE_LENGTH = 1024;
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/u;
-const KNOWN_PROVIDER_ERROR_CODES = new Set(Object.values(PROVIDER_ERROR_CODES));
+const GATEWAY_CONTROL_ERROR_CODES = Object.freeze([
+  'provider-account-not-found',
+]);
+const KNOWN_GATEWAY_ERROR_CODES = new Set([
+  ...Object.values(PROVIDER_ERROR_CODES),
+  ...GATEWAY_CONTROL_ERROR_CODES,
+]);
 
 export class ProviderGateway {
   constructor({ baseUrl = '/api/mail', fetchImpl = globalThis.fetch } = {}) {
@@ -55,7 +61,7 @@ async function readBoundedGatewayError(response) {
     const payload = await response.json();
     const error = payload?.error;
     if (!error || typeof error !== 'object') return null;
-    if (typeof error.code !== 'string' || !KNOWN_PROVIDER_ERROR_CODES.has(error.code)) return null;
+    if (typeof error.code !== 'string' || !KNOWN_GATEWAY_ERROR_CODES.has(error.code)) return null;
     if (typeof error.message !== 'string') return null;
     if (
       !error.message ||
