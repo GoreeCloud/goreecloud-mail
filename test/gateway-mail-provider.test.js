@@ -62,6 +62,31 @@ test('ProviderGateway preserves bounded trusted-backend provider errors', async 
   );
 });
 
+test('ProviderGateway preserves the bounded account-isolation not-found contract', async () => {
+  const gateway = new ProviderGateway({
+    fetchImpl: async () =>
+      response(
+        {
+          error: {
+            code: 'provider-account-not-found',
+            message: 'Provider account was not found.',
+            retryable: false,
+          },
+        },
+        { status: 404 },
+      ),
+  });
+
+  await assert.rejects(
+    gateway.request('/accounts/another-users-account/capabilities'),
+    (error) =>
+      error.code === 'provider-account-not-found' &&
+      error.status === 404 &&
+      error.retryable === false &&
+      error.message === 'Provider account was not found.',
+  );
+});
+
 test('ProviderGateway rejects malformed trusted-backend error fields before public projection', async () => {
   const invalidErrors = [
     {
