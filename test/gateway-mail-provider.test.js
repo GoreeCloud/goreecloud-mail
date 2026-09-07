@@ -7,13 +7,10 @@ import { GmailMailProvider } from '../web/providers/gmail-provider.js';
 import { ImapSmtpMailProvider } from '../web/providers/imap-smtp-provider.js';
 
 function response(body, { status = 200 } = {}) {
-  return {
-    ok: status >= 200 && status < 300,
+  return new Response(JSON.stringify(body), {
     status,
-    async json() {
-      return body;
-    },
-  };
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+  });
 }
 
 test('ProviderGateway uses same-origin credentials and JSON bodies', async () => {
@@ -125,6 +122,32 @@ test('ProviderGateway rejects malformed trusted-backend error fields before publ
         error.message === 'The provider rejected the request.',
     );
   }
+});
+
+test('ProviderGateway rejects oversized raw error payloads before trusted projection', async () => {
+  const gateway = new ProviderGateway({
+    fetchImpl: async () =>
+      response(
+        {
+          error: {
+            code: 'provider-capability-unavailable',
+            message: 'This short message would otherwise be trusted.',
+            retryable: false,
+          },
+          padding: 'x'.repeat(16_384),
+        },
+        { status: 400 },
+      ),
+  });
+
+  await assert.rejects(
+    gateway.request('/accounts/account-1/messages'),
+    (error) =>
+      error.code === 'invalid-request' &&
+      error.status === 400 &&
+      error.retryable === false &&
+      error.message === 'The provider rejected the request.',
+  );
 });
 
 test('ProviderGateway normalizes unstructured HTTP failures instead of exposing arbitrary response content', async () => {
