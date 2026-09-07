@@ -7,13 +7,10 @@ import { GmailMailProvider } from '../web/providers/gmail-provider.js';
 import { ImapSmtpMailProvider } from '../web/providers/imap-smtp-provider.js';
 
 function response(body, { status = 200 } = {}) {
-  return {
-    ok: status >= 200 && status < 300,
+  return new Response(JSON.stringify(body), {
     status,
-    async json() {
-      return body;
-    },
-  };
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+  });
 }
 
 test('ProviderGateway uses same-origin credentials and JSON bodies', async () => {
@@ -59,6 +56,97 @@ test('ProviderGateway preserves bounded trusted-backend provider errors', async 
       error.status === 400 &&
       error.retryable === false &&
       error.message === 'This account cannot perform that provider operation.',
+  );
+});
+
+test('ProviderGateway preserves the bounded account-isolation not-found contract', async () => {
+  const gateway = new ProviderGateway({
+    fetchImpl: async () =>
+      response(
+        {
+          error: {
+            code: 'provider-account-not-found',
+            message: 'Provider account was not found.',
+            retryable: false,
+          },
+        },
+        { status: 404 },
+      ),
+  });
+
+  await assert.rejects(
+    gateway.request('/accounts/another-users-account/capabilities'),
+    (error) =>
+      error.code === 'provider-account-not-found' &&
+      error.status === 404 &&
+      error.retryable === false &&
+      error.message === 'Provider account was not found.',
+  );
+});
+
+test('ProviderGateway rejects malformed trusted-backend error fields before public projection', async () => {
+  const invalidErrors = [
+    {
+      code: 'not-a-provider-error-code',
+      message: 'Arbitrary backend error.',
+      retryable: false,
+    },
+    {
+      code: 'invalid-request',
+      message: ' x'.repeat(600),
+      retryable: false,
+    },
+    {
+      code: 'invalid-request',
+      message: 'Malformed\nbackend message',
+      retryable: false,
+    },
+    {
+      code: 'invalid-request',
+      message: 'Looks false but is a string.',
+      retryable: 'false',
+    },
+  ];
+
+  for (const backendError of invalidErrors) {
+    const gateway = new ProviderGateway({
+      fetchImpl: async () => response({ error: backendError }, { status: 400 }),
+    });
+
+    await assert.rejects(
+      gateway.request('/accounts/account-1/messages'),
+      (error) =>
+        error.code === 'invalid-request' &&
+        error.status === 400 &&
+        error.retryable === false &&
+        error.message === 'The provider rejected the request.',
+    );
+  }
+});
+
+test('ProviderGateway rejects oversized raw error payloads before trusted projection', async () => {
+  const gateway = new ProviderGateway({
+    fetchImpl: async () =>
+      response(
+        {
+          error: {
+            code: 'provider-capability-unavailable',
+            message: 'This short message would otherwise be trusted.',
+            retryable: false,
+          },
+          padding: 'x'.repeat(16_384),
+        },
+        { status: 400 },
+      ),
+  });
+
+  await assert.rejects(
+    gateway.request('/accounts/account-1/messages'),
+    (error) =>
+      error.code === 'invalid-request' &&
+      error.status === 400 &&
+      error.retryable === false &&
+      error.message === 'The provider rejected the request.',
   );
 });
 
