@@ -14,13 +14,10 @@ import { GmailMailProvider } from '../web/providers/gmail-provider.js';
 import { ProviderGateway } from '../web/providers/provider-gateway.js';
 
 function webResponse(result) {
-  return {
-    ok: result.status >= 200 && result.status < 300,
+  return new Response(JSON.stringify(structuredClone(result.body)), {
     status: result.status,
-    async json() {
-      return structuredClone(result.body);
-    },
-  };
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+  });
 }
 
 function buildHarness({ scope, sessionUser = 'user-a' }) {
