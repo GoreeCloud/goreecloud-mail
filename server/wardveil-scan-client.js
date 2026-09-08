@@ -9,6 +9,7 @@ const ACTION_RE = /^[a-z][a-z0-9_:-]{0,63}$/;
 const MINIMUM_SECRET_BYTES = 32;
 const DEFAULT_TIMEOUT_MS = 35_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 1 << 20;
+const DEFAULT_MAX_REQUEST_BYTES = 64 << 20;
 
 function requireToken(value, name) {
   if (typeof value !== 'string' || !TOKEN_RE.test(value)) {
@@ -56,6 +57,17 @@ function normalizeSecret(secret) {
     }
   }
   return value;
+}
+
+function normalizeScanBytes(bytes, maxRequestBytes) {
+  if (!Buffer.isBuffer(bytes) && !(bytes instanceof Uint8Array)) {
+    throw new TypeError('Wardveil Scan content must be binary bytes');
+  }
+  const content = Buffer.from(bytes);
+  if (content.length > maxRequestBytes) {
+    throw new RangeError('Wardveil Scan request exceeds configured limit');
+  }
+  return content;
 }
 
 function randomToken(prefix) {
@@ -121,6 +133,7 @@ export class WardveilScanClient {
     secret,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
+    maxRequestBytes = DEFAULT_MAX_REQUEST_BYTES,
     fetchImpl = globalThis.fetch,
     now = () => new Date(),
     nonce = () => randomToken('mail-nonce'),
@@ -130,14 +143,19 @@ export class WardveilScanClient {
     this.callerId = requireToken(callerId, 'Wardveil Scan caller ID');
     this.keyId = requireToken(keyId, 'Wardveil Scan key ID');
     this.secret = normalizeSecret(secret);
-    if (!Number.isInteger(timeoutMs) || timeoutMs <= 0 || !Number.isInteger(maxResponseBytes) || maxResponseBytes <= 0) {
-      throw new TypeError('Wardveil Scan timeout and response limit must be positive integers');
+    if (
+      !Number.isInteger(timeoutMs) || timeoutMs <= 0 ||
+      !Number.isInteger(maxResponseBytes) || maxResponseBytes <= 0 ||
+      !Number.isInteger(maxRequestBytes) || maxRequestBytes <= 0
+    ) {
+      throw new TypeError('Wardveil Scan timeout and request/response limits must be positive integers');
     }
     if (typeof fetchImpl !== 'function' || typeof now !== 'function' || typeof nonce !== 'function' || typeof correlationId !== 'function') {
       throw new TypeError('Wardveil Scan client dependencies are invalid');
     }
     this.timeoutMs = timeoutMs;
     this.maxResponseBytes = maxResponseBytes;
+    this.maxRequestBytes = maxRequestBytes;
     this.fetchImpl = fetchImpl;
     this.now = now;
     this.nonce = nonce;
@@ -155,7 +173,7 @@ export class WardveilScanClient {
     if (typeof action !== 'string' || !ACTION_RE.test(action)) {
       throw new TypeError('Wardveil Scan action is invalid');
     }
-    const content = Buffer.isBuffer(bytes) ? Buffer.from(bytes) : Buffer.from(bytes ?? []);
+    const content = normalizeScanBytes(bytes, this.maxRequestBytes);
     const digestSha256 = createHash('sha256').update(content).digest('hex');
     const timestamp = this.now().toISOString();
     const nonce = requireToken(this.nonce(), 'Wardveil Scan nonce');
