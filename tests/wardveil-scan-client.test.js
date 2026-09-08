@@ -108,6 +108,42 @@ test('Mail rejects unsafe Wardveil endpoint configuration', () => {
   }
 });
 
+test('Mail rejects non-binary Wardveil scan content before transport', async () => {
+  let called = false;
+  const client = clientWith(async () => {
+    called = true;
+    return jsonResponse(envelope());
+  });
+
+  await assert.rejects(
+    () => client.scanAttachment({ messageId: 'message-1', attachmentId: 'attachment-1', bytes: 'plaintext-string', action: 'open' }),
+    /must be binary bytes/,
+  );
+  assert.equal(called, false);
+});
+
+test('Mail rejects Wardveil scan requests above the configured byte bound before transport', async () => {
+  let called = false;
+  const client = new WardveilScanClient({
+    endpoint: 'http://127.0.0.1:8791/v1/scan',
+    secret: SECRET,
+    maxRequestBytes: 4,
+    now: () => NOW,
+    nonce: () => 'mail-nonce-1',
+    correlationId: () => 'mail-scan-correlation',
+    fetchImpl: async () => {
+      called = true;
+      return jsonResponse(envelope());
+    },
+  });
+
+  await assert.rejects(
+    () => client.scanAttachment({ messageId: 'message-1', attachmentId: 'attachment-1', bytes: Buffer.alloc(5), action: 'open' }),
+    /request exceeds configured limit/,
+  );
+  assert.equal(called, false);
+});
+
 test('Mail rejects obsolete scan_result application envelope', async () => {
   const client = clientWith(async () => jsonResponse(envelope({ field: 'scan_result' })));
   await assert.rejects(
