@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            MaterialTheme {
+            GlazeMailTheme {
                 MailDevelopmentShell(MailCapabilitySnapshot.developmentShell())
             }
         }
@@ -73,6 +73,11 @@ private fun MailDevelopmentShell(capabilities: MailCapabilitySnapshot) {
             Text(
                 text = "Native Android Development client",
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = "GLAZE UI ${GlazeMailContract.VERSION} · ${GlazeMailContract.ADOPTION_STATE.replace('_', ' ')}",
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
