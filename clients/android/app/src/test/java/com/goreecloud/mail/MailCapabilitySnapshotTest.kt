@@ -8,7 +8,7 @@ class MailCapabilitySnapshotTest {
     @Test
     fun developmentShellDoesNotClaimRuntimeCapabilities() {
         val snapshot = MailCapabilitySnapshot.developmentShell()
-        val capabilities = listOf(
+        val runtimeCapabilities = listOf(
             snapshot.accountTransport,
             snapshot.backgroundSync,
             snapshot.pushNotifications,
@@ -16,9 +16,18 @@ class MailCapabilitySnapshotTest {
             snapshot.attachmentHandling,
         )
 
-        assertEquals(5, capabilities.size)
-        assertTrue(capabilities.all { it.state == MailCapabilityState.NOT_IMPLEMENTED })
-        assertTrue(capabilities.none { it.state == MailCapabilityState.AVAILABLE })
+        assertEquals(5, runtimeCapabilities.size)
+        assertTrue(runtimeCapabilities.all { it.state == MailCapabilityState.NOT_IMPLEMENTED })
+        assertTrue(runtimeCapabilities.none { it.state == MailCapabilityState.AVAILABLE })
+    }
+
+    @Test
+    fun sessionBindingContractIsSourceReadyButNotRuntimeAccepted() {
+        val snapshot = MailCapabilitySnapshot.developmentShell()
+
+        assertEquals(MailCapabilityState.SOURCE_READY, snapshot.sessionBindingContract.state)
+        assertTrue(snapshot.sessionBindingContract.explanation.contains("Identity exchange is not implemented"))
+        assertTrue(snapshot.accountTransport.state != MailCapabilityState.AVAILABLE)
     }
 
     @Test
