@@ -2,6 +2,11 @@ package com.goreecloud.mail
 
 import java.time.Instant
 
+object MailIdentityContractReference {
+    const val SCHEMA = "goreecloud.identity.native-application-session/v1"
+    const val CANDIDATE_REVISION = "62ad109809f2e479cf71a6327ffd0d4537a6b3df"
+}
+
 /**
  * Non-secret identity/session metadata required before Android Mail transport can be considered.
  *
@@ -47,6 +52,10 @@ sealed interface MailSessionBindingDecision {
 
 /**
  * Pure, fail-closed acceptance policy for native Mail session/account binding metadata.
+ *
+ * The common principal/audience/lifetime semantics are aligned to the pinned GoreeCloud Identity
+ * native-application-session source contract candidate. Account identifiers remain a Mail-owned
+ * additional exact opaque binding and do not expand Identity authority.
  *
  * Account identifiers are exact opaque values. They are never string-coerced, trimmed, case-folded,
  * decoded, or otherwise normalized here. This preserves the existing provider-runtime identity
