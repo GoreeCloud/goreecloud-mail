@@ -27,6 +27,18 @@ class MailSessionBindingTest {
     )
 
     @Test
+    fun canonicalIdentityContractCandidateIsPinnedExactly() {
+        assertEquals(
+            "goreecloud.identity.native-application-session/v1",
+            MailIdentityContractReference.SCHEMA,
+        )
+        assertEquals(
+            "62ad109809f2e479cf71a6327ffd0d4537a6b3df",
+            MailIdentityContractReference.CANDIDATE_REVISION,
+        )
+    }
+
+    @Test
     fun missingProofFailsClosed() {
         assertEquals(
             MailSessionBindingDecision.MissingProof,
