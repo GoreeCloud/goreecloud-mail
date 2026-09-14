@@ -22,11 +22,13 @@ class MailCapabilitySnapshotTest {
     }
 
     @Test
-    fun sessionBindingContractIsSourceReadyButNotRuntimeAccepted() {
+    fun sourceContractsAreReadyButRuntimeRemainsBlocked() {
         val snapshot = MailCapabilitySnapshot.developmentShell()
 
         assertEquals(MailCapabilityState.SOURCE_READY, snapshot.sessionBindingContract.state)
+        assertEquals(MailCapabilityState.SOURCE_READY, snapshot.providerAccountContract.state)
         assertTrue(snapshot.sessionBindingContract.explanation.contains("Identity exchange is not implemented"))
+        assertTrue(snapshot.providerAccountContract.explanation.contains("no network transport is enabled"))
         assertTrue(snapshot.accountTransport.state != MailCapabilityState.AVAILABLE)
     }
 
