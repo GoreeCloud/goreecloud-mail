@@ -15,6 +15,7 @@ data class MailCapability(
 data class MailCapabilitySnapshot(
     val sessionBindingContract: MailCapability,
     val providerReadContract: MailCapability,
+    val providerWireDecoderContract: MailCapability,
     val accountTransport: MailCapability,
     val backgroundSync: MailCapability,
     val pushNotifications: MailCapability,
@@ -34,7 +35,11 @@ data class MailCapabilitySnapshot(
                 ),
                 providerReadContract = MailCapability(
                     state = MailCapabilityState.SOURCE_READY,
-                    explanation = "Read-only account discovery/detail/capability request and response contracts match the current Mail service; decoding and network transport are not implemented",
+                    explanation = "Read-only account discovery/detail/capability request and response contracts match the current Mail service; network transport is not implemented",
+                ),
+                providerWireDecoderContract = MailCapability(
+                    state = MailCapabilityState.SOURCE_READY,
+                    explanation = "Exact-field transport-neutral decoding rejects unknown/missing fields and scalar coercion before response acceptance; JSON parsing and network transport are not implemented",
                 ),
                 accountTransport = pending,
                 backgroundSync = pending,
