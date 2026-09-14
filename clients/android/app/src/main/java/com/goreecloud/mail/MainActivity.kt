@@ -163,7 +163,18 @@ private fun CapabilityStatusCard(capabilities: MailCapabilitySnapshot) {
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "Account transport, synchronization, push, secure storage, and attachments remain fail-closed. A valid binding is only a prerequisite; this shell still has no network authority and does not imply production readiness.",
+                text = "Identity registration contract: ${capabilities.identityRegistrationContract.state.name.replace('_', ' ')}",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = capabilities.identityRegistrationContract.explanation,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Account transport, synchronization, push, secure storage, and attachments remain fail-closed. Source-ready contracts are prerequisites only; this shell still has no network authority and does not imply production readiness.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
