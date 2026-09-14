@@ -5,12 +5,18 @@ on:
     paths:
       - goreecloud.platform.yaml
       - .github/workflows/platform-contract.yml
+      - docs/PLATFORM_CONFORMANCE.md
+      - clients/android/README.md
+      - clients/android/BUILD_STATUS.md
   push:
     branches:
       - main
     paths:
       - goreecloud.platform.yaml
       - .github/workflows/platform-contract.yml
+      - docs/PLATFORM_CONFORMANCE.md
+      - clients/android/README.md
+      - clients/android/BUILD_STATUS.md
   workflow_dispatch:
 
 permissions:
@@ -22,6 +28,6 @@ concurrency:
 
 jobs:
   validate:
-    uses: GoreeCloud/GoreeCloud/.github/workflows/reusable-platform-manifest.yml@5bb49dd878b90f140c7af4be1f7b1af0fddbe93c
+    uses: GoreeCloud/GoreeCloud/.github/workflows/reusable-platform-manifest.yml@5e10d17f10a4c12cc0a98b595646e4fc5992c1f2
     with:
       manifest-path: goreecloud.platform.yaml

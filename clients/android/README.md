@@ -4,31 +4,43 @@ This directory contains the first-party native Android application line for Gore
 
 ## Current Development foundation
 
-The Android client now includes a Kotlin/Jetpack Compose `:app` module targeting SDK 36 with minimum SDK 29 and Java 17. The current shell provides a launchable mailbox interface and a truthful runtime-capability model, but it deliberately remains disconnected from production mail services.
+The Android client includes a Kotlin/Jetpack Compose `:app` module targeting SDK 36 with minimum SDK 29 and Java 17. The current shell provides a launchable mailbox interface and a truthful runtime-capability model, but it deliberately remains disconnected from production mail services.
 
 Current implemented foundation:
 
 - Native Android application module and launcher activity.
 - Compose-based Development mailbox surface.
+- Repository-local GLAZE UI V1.4 / `1.4.0` source-adoption boundary pinned to exact Stable revision `84cb3db4884042f0fa25ed6d475a127fb110f596`.
 - Explicit capability state for account transport, background synchronization, push notifications, secure local storage, and attachment handling.
-- Fail-closed Development behavior: no `INTERNET` permission and no backend/account authority is claimed.
+- Source-ready `MailSessionBinding` prerequisite for non-secret principal, exact opaque Mail account, Android-Mail audience, and lifetime proof metadata.
+- Fail-closed Development behavior: no `INTERNET` permission and no provider/account transport authority is claimed.
 - Android backup disabled for the current shell.
-- Unit coverage proving the Development shell does not advertise unavailable runtime capability.
+- JVM coverage for capability truthfulness and session-binding rejection/acceptance rules.
+- Android Client CI validating the V1.4 source boundary, JVM tests, and debug APK assembly.
 - Gradle caching, parallel execution, and incremental Kotlin compilation enabled.
+
+The session-binding contract is not an authentication implementation. It does not create or persist credentials, register Mail with GoreeCloud Identity, exchange bearer/refresh tokens, copy browser cookies, enable network transport, or authorize provider access. External-provider authorization remains a separate authority from GoreeCloud Identity.
+
+## Platform-system boundary
+
+The Android Development line is evaluated independently against all eight GoreeCloud Platform Systems: Manager, Privacy Shield, Wardveil Security, Everkeep, GLAZE UI, Mesh, Identity, and Sync.
+
+Current source/build evidence does not establish accepted runtime integration for Manager, Privacy Shield, Wardveil Security, Everkeep, Mesh, Identity, or Sync. GLAZE UI V1.4 source adoption remains `ADOPTION_IN_PROGRESS`; application-level rendered/accessibility/device acceptance and applicable V1.4.1 manual qualification remain separate.
+
+GoreeCloud Sync must not be inferred from provider synchronization, local cache/storage, background work, offline replay, or Everkeep backup/recovery.
 
 ## Next Android work
 
-The next implementation tranches should add, independently and with explicit acceptance evidence:
+Advance each capability independently and preserve truthful authority boundaries:
 
-- GoreeCloud Mail account/session binding.
-- Provider-independent mail transport and synchronization.
-- Protected local message/index storage.
-- Background work and push notification boundaries.
-- Attachment download/open/share policy.
-- Offline queueing and conflict handling.
-- Wardveil Security and Privacy Shield acceptance.
-- Everkeep recovery/restore behavior where applicable.
-- Glaze UI V1.3 application-level migration and accessibility acceptance.
-- APK/AAB CI, SBOM/provenance, protected signing, representative-device validation, and release acceptance.
+1. Define and accept first-party GoreeCloud Identity native application registration and credential/session exchange for Android Mail without reusable application-wide credentials.
+2. Add provider-independent account transport and read-only mailbox synchronization against non-production Development accounts.
+3. Add protected local message/index storage with explicit data-minimization, encryption/key-custody, eviction, and recovery behavior.
+4. Add bounded background work and push-notification authority.
+5. Add attachment download/open/share behavior under accepted Wardveil Security and Privacy Shield policy.
+6. Add offline queueing, version/conflict handling, and explicit GoreeCloud Sync integration where applicable.
+7. Complete repository-wide GLAZE UI V1.4 migration, Android rendered/accessibility/form-factor/representative-device acceptance, and applicable V1.4.1 human/manual checks.
+8. Complete Everkeep backup/restore behavior for Mail-owned Android state where applicable.
+9. Add APK/AAB provenance/SBOM, protected signing, rollback/upgrade evidence, Release Candidate, production, and Stable gates.
 
-Signing material and reusable secrets must remain outside GitHub and outside source-controlled application configuration.
+Signing material, reusable secrets, provider credentials, and production Identity credentials must remain outside GitHub and outside source-controlled application configuration.
