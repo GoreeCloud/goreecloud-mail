@@ -50,7 +50,6 @@ def main() -> None:
     require(provider_contract, "MailProviderAccountContractState.SOURCE_READY", "provider account contract")
     require(provider_contract, "MailProviderAccountContractState.IDENTITY_BLOCKED", "provider account contract")
     require(provider_contract, "MailProviderAccountContractState.TRANSPORT_BLOCKED", "provider account contract")
-    require(provider_contract, '"accessToken"', "provider account tests/shape boundary") if False else None
     forbid(provider_contract, "HttpURLConnection", "provider account contract")
     forbid(provider_contract, "OkHttp", "provider account contract")
     forbid(provider_contract, "Retrofit", "provider account contract")
