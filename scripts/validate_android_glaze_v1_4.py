@@ -9,9 +9,12 @@ MANIFEST = ROOT / "clients/android/app/src/main/AndroidManifest.xml"
 DOC = ROOT / "docs/glaze-ui-v1.4-android-adoption.md"
 PROVIDER_CONTRACT = ROOT / "clients/android/app/src/main/java/com/goreecloud/mail/MailProviderAccountContract.kt"
 PROVIDER_DECODER = ROOT / "clients/android/app/src/main/java/com/goreecloud/mail/MailProviderAccountDecoder.kt"
+IDENTITY_REGISTRATION = ROOT / "clients/android/app/src/main/java/com/goreecloud/mail/MailIdentityRegistration.kt"
 
 VERSION = "1.4.0"
 REVISION = "84cb3db4884042f0fa25ed6d475a127fb110f596"
+IDENTITY_REGISTRATION_SCHEMA = "goreecloud.identity.native-application-registration/v1"
+IDENTITY_REGISTRATION_REVISION = "73c3c00ff44906849baa711c588a0466e72999d7"
 
 
 def require(text: str, fragment: str, label: str) -> None:
@@ -31,6 +34,7 @@ def main() -> None:
     doc = DOC.read_text(encoding="utf-8")
     provider_contract = PROVIDER_CONTRACT.read_text(encoding="utf-8")
     provider_decoder = PROVIDER_DECODER.read_text(encoding="utf-8")
+    identity_registration = IDENTITY_REGISTRATION.read_text(encoding="utf-8")
 
     require(theme, f'VERSION = "{VERSION}"', "theme")
     require(theme, f'REFERENCE_REVISION = "{REVISION}"', "theme")
@@ -56,9 +60,19 @@ def main() -> None:
     require(provider_decoder, "exactFields", "provider account decoder")
     require(provider_decoder, "MailProviderAccountContract.CAPABILITY_NAMES", "provider account decoder")
 
+    require(identity_registration, f'SCHEMA = "{IDENTITY_REGISTRATION_SCHEMA}"', "Identity registration")
+    require(identity_registration, f'CANDIDATE_REVISION = "{IDENTITY_REGISTRATION_REVISION}"', "Identity registration")
+    require(identity_registration, "PINNED_REGISTRY_HAS_RUNTIME_REGISTRATIONS = false", "Identity registration")
+    require(identity_registration, "MailIdentityRegistrationContractState.SOURCE_READY", "Identity registration")
+    require(identity_registration, "MailIdentityRegistrationContractState.PINNED_IDENTITY_REGISTRY_EMPTY", "Identity registration")
+    require(identity_registration, "MailIdentityRegistrationContractState.RUNTIME_BLOCKED", "Identity registration")
+    require(identity_registration, "object MailIdentityRegistrationDecoder", "Identity registration")
+    require(identity_registration, "object MailIdentityRegistrationPolicy", "Identity registration")
+
     for source, label in (
         (provider_contract, "provider account contract"),
         (provider_decoder, "provider account decoder"),
+        (identity_registration, "Identity registration"),
     ):
         forbid(source, "HttpURLConnection", label)
         forbid(source, "OkHttp", label)
@@ -75,8 +89,9 @@ def main() -> None:
     print(
         "Mail Android source boundary validated: "
         f"glaze={VERSION}@{REVISION} providerAccountContract=source-ready "
-        "providerAccountDecoder=source-ready identityRuntime=false internet=false "
-        "accountTransport=false production=false"
+        "providerAccountDecoder=source-ready identityRegistration=source-ready "
+        "identityRegistry=empty identityRuntime=false internet=false accountTransport=false "
+        "production=false"
     )
 
 
