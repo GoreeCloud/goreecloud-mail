@@ -47,7 +47,7 @@ private data class MailboxPreview(
 )
 
 private val developmentMailboxes = listOf(
-    MailboxPreview("Inbox", "Incoming mail will appear here after account transport is accepted"),
+    MailboxPreview("Inbox", "Incoming mail will appear here after mailbox/message read routes and account transport are accepted"),
     MailboxPreview("Starred", "Locally and remotely starred messages will be available after sync is implemented"),
     MailboxPreview("Sent", "Sent-message history is not connected in this Development shell"),
     MailboxPreview("Drafts", "Draft persistence remains unavailable until secure local storage is implemented"),
@@ -151,22 +151,32 @@ private fun CapabilityStatusCard(capabilities: MailCapabilitySnapshot) {
                 )
             }
             Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Session/account binding contract: ${capabilities.sessionBindingContract.state.name.replace('_', ' ')}",
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = capabilities.sessionBindingContract.explanation,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            SourceStatus("Session/account binding", capabilities.sessionBindingContract)
+            SourceStatus("Provider account read contract", capabilities.providerAccountReadContract)
+            SourceStatus("Provider capability read contract", capabilities.providerCapabilityReadContract)
+            SourceStatus("Mailbox read contract", capabilities.mailboxReadContract)
+            SourceStatus("Message read contract", capabilities.messageReadContract)
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "Account transport, synchronization, push, secure storage, and attachments remain fail-closed. A valid binding is only a prerequisite; this shell still has no network authority and does not imply production readiness.",
+                text = "Account transport, synchronization, push, secure storage, and attachments remain fail-closed. Source-ready account metadata and capability discovery do not create a live Identity session or network authority.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
+}
+
+@Composable
+private fun SourceStatus(label: String, capability: MailCapability) {
+    Text(
+        text = "$label: ${capability.state.name.replace('_', ' ')}",
+        style = MaterialTheme.typography.bodySmall,
+        fontWeight = FontWeight.SemiBold,
+    )
+    Text(
+        text = capability.explanation,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(4.dp))
 }
