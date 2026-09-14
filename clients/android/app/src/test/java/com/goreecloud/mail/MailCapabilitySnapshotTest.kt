@@ -27,8 +27,10 @@ class MailCapabilitySnapshotTest {
 
         assertEquals(MailCapabilityState.SOURCE_READY, snapshot.sessionBindingContract.state)
         assertEquals(MailCapabilityState.SOURCE_READY, snapshot.providerReadContract.state)
+        assertEquals(MailCapabilityState.SOURCE_READY, snapshot.providerWireDecoderContract.state)
         assertTrue(snapshot.sessionBindingContract.explanation.contains("Identity exchange is not implemented"))
-        assertTrue(snapshot.providerReadContract.explanation.contains("network transport are not implemented"))
+        assertTrue(snapshot.providerReadContract.explanation.contains("network transport is not implemented"))
+        assertTrue(snapshot.providerWireDecoderContract.explanation.contains("JSON parsing and network transport are not implemented"))
         assertTrue(snapshot.accountTransport.state != MailCapabilityState.AVAILABLE)
     }
 
