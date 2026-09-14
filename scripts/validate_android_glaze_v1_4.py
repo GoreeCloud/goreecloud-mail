@@ -7,6 +7,8 @@ THEME = ROOT / "clients/android/app/src/main/java/com/goreecloud/mail/GlazeMailT
 MAIN = ROOT / "clients/android/app/src/main/java/com/goreecloud/mail/MainActivity.kt"
 MANIFEST = ROOT / "clients/android/app/src/main/AndroidManifest.xml"
 DOC = ROOT / "docs/glaze-ui-v1.4-android-adoption.md"
+CAPABILITIES = ROOT / "clients/android/app/src/main/java/com/goreecloud/mail/MailCapabilitySnapshot.kt"
+PROVIDER_ACCOUNT = ROOT / "clients/android/app/src/main/java/com/goreecloud/mail/MailProviderAccountContract.kt"
 
 VERSION = "1.4.0"
 REVISION = "84cb3db4884042f0fa25ed6d475a127fb110f596"
@@ -27,6 +29,8 @@ def main() -> None:
     main_source = MAIN.read_text(encoding="utf-8")
     manifest = MANIFEST.read_text(encoding="utf-8")
     doc = DOC.read_text(encoding="utf-8")
+    capabilities = CAPABILITIES.read_text(encoding="utf-8")
+    provider_account = PROVIDER_ACCOUNT.read_text(encoding="utf-8")
 
     require(theme, f'VERSION = "{VERSION}"', "theme")
     require(theme, f'REFERENCE_REVISION = "{REVISION}"', "theme")
@@ -44,13 +48,32 @@ def main() -> None:
     require(doc, "Development / adoption in progress", "documentation")
     require(doc, REVISION, "documentation")
 
-    # This Glaze migration must not accidentally expand Mail's runtime authority.
+    require(provider_account, 'ACCOUNTS_PATH = "/api/mail/accounts"', "provider account contract")
+    require(provider_account, '"mailboxAccess"', "provider account contract")
+    require(provider_account, '"messageRead"', "provider account contract")
+    require(provider_account, '"organizationPolicies"', "provider account contract")
+    require(provider_account, 'account.id != expected', "provider account contract")
+    require(provider_account, 'response.capabilities.keys != KNOWN_CAPABILITIES', "provider account contract")
+    forbid(provider_account, "fetch(", "provider account contract")
+    forbid(provider_account, "HttpClient", "provider account contract")
+    forbid(provider_account, "Bearer", "provider account contract")
+    forbid(provider_account, "refreshToken", "provider account contract")
+
+    require(capabilities, "providerAccountReadContract", "capability snapshot")
+    require(capabilities, "providerCapabilityReadContract", "capability snapshot")
+    require(capabilities, "mailboxReadContract", "capability snapshot")
+    require(capabilities, "messageReadContract", "capability snapshot")
+    require(capabilities, "MailCapabilityState.BACKEND_BLOCKED", "capability snapshot")
+
+    # This Glaze/source-contract migration must not accidentally expand Mail's runtime authority.
     forbid(manifest, "android.permission.INTERNET", "manifest")
     require(manifest, 'android:allowBackup="false"', "manifest")
 
     print(
-        "Mail Android GLAZE UI V1.4 adoption validated: "
-        f"version={VERSION} revision={REVISION} conformance=false production=false"
+        "Mail Android V1.4/source boundary validated: "
+        f"version={VERSION} revision={REVISION} "
+        "providerAccountRead=source-ready providerCapabilities=source-ready "
+        "mailboxRead=backend-blocked messageRead=backend-blocked internet=false production=false"
     )
 
 
