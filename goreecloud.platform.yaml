@@ -1,4 +1,4 @@
-schema_version: "0.2"
+schema_version: "0.3"
 
 component:
   type: application
@@ -11,6 +11,7 @@ version: "0.1.0-dev"
 
 supported_platforms:
   - web
+  - android
 
 api:
   versions: []
@@ -24,6 +25,7 @@ platform_systems:
       - README.md
       - SPECIFICATIONS.md
     notes: GoreeCloud Mail has provider and trusted-backend administration surfaces, but accepted GoreeCloud Manager registration, visibility, policy, and target-runtime integration are not established.
+
   privacy_shield:
     result: applicable-blocked
     version: null
@@ -32,7 +34,10 @@ platform_systems:
       - server/restrictive-html-sanitizer.js
       - SECURITY.md
       - SPECIFICATIONS.md
-    notes: Source implements privacy-oriented message-content and remote-content boundaries, but accepted Privacy Shield policy/runtime integration, target-environment minimization evidence, and production privacy acceptance are not established.
+      - clients/android/README.md
+      - clients/android/app/src/main/java/com/goreecloud/mail/MailSessionBinding.kt
+    notes: Source implements privacy-oriented message-content and remote-content boundaries, and the Android Development client keeps transport, synchronization, storage, attachments, and reusable credentials fail-closed. No accepted Privacy Shield policy/runtime integration, purpose/retention authority, target-environment minimization evidence, or production privacy acceptance is established.
+
   wardveil_security:
     result: applicable-blocked
     version: null
@@ -43,7 +48,9 @@ platform_systems:
       - server/wardveil-scan-client.js
       - docs/mail-wardveil-runtime-acceptance.md
       - scripts/run-mail-wardveil-runtime-acceptance.mjs
-    notes: Incoming/download and outgoing Gmail send/draft attachment paths have source validation and bounded controlled-provider target-runtime validation against Wardveil Scan. Real Gmail attachment execution, production service identity and credential lifecycle, authoritative Wardveil Audit/Security Center provenance, quarantine execution/readback, and broad production Wardveil acceptance remain unproven; this bounded evidence does not authorize a general Protected by Wardveil claim.
+      - clients/android/README.md
+    notes: Incoming/download and outgoing Gmail send/draft attachment paths have source validation and bounded controlled-provider target-runtime validation against Wardveil Scan. Real Gmail attachment execution, Android attachment handling, production service identity and credential lifecycle, authoritative Wardveil Audit/Security Center provenance, quarantine execution/readback, and broad production Wardveil acceptance remain unproven; this bounded evidence does not authorize a general Protected by Wardveil claim.
+
   everkeep:
     result: applicable-blocked
     version: null
@@ -53,17 +60,24 @@ platform_systems:
       - server/sqlite-migrations.js
       - docs/database-maintenance.md
       - docs/persistence-schema.sql
-    notes: Durable SQLite state, migrations, and a bounded backup primitive exist, but complete Mail-owned backup scope, restore implementation and drills, credential/provenance treatment, target-environment recovery validation, and accepted Everkeep integration are incomplete.
+      - clients/android/README.md
+    notes: Durable trusted-backend SQLite state, migrations, and a bounded backup primitive exist, while the Android Development client deliberately has no accepted local mail store. Complete Mail-owned backup scope, Android recovery semantics, restore implementation and drills, credential/provenance treatment, target-environment recovery validation, and accepted Everkeep integration are incomplete.
+
   glaze_ui:
     result: applicable-migration-required
-    version: "1.1.0"
+    version: "1.4.0"
     evidence:
       - web/index.html
       - web/styles.css
       - web/attachment-security.css
       - contracts/glaze.mail-attachment-security-presentation.json
       - scripts/validate_glaze_mail_attachment_security.py
-    notes: Current platform authority requires GLAZE UI V1.1 / 1.1.0. Older Mail V1.0 and pre-reset 2.x source/specification records are historical Development evidence only. The known immutable 1.1.0 import-closure defect still requires a corrected governed immutable Stable release, explicit Mail re-pin, and fresh rendered/accessibility/responsive/representative-environment/Human Visual Excellence acceptance before application conformance can be claimed.
+      - clients/android/README.md
+      - clients/android/app/src/main/java/com/goreecloud/mail/GlazeMailTheme.kt
+      - docs/glaze-ui-v1.4-android-adoption.md
+      - scripts/validate_android_glaze_v1_4.py
+    notes: The native Android Development client targets current Stable GLAZE UI V1.4 / 1.4.0 at exact Stable revision 84cb3db4884042f0fa25ed6d475a127fb110f596 and remains ADOPTION_IN_PROGRESS. The existing web application still carries older repository-local Glaze mapping and rendered evidence, so Mail as a whole remains migration-required. No historical web evidence or Android source/build evidence is promoted into repository-wide V1.4 rendered, accessibility, representative-environment, Human Visual Excellence, or V1.4.1 manual/device acceptance.
+
   mesh:
     result: applicable-blocked
     version: null
@@ -75,6 +89,7 @@ platform_systems:
     dependencies: []
     published_events: []
     consumed_events: []
+
   identity:
     result: applicable-blocked
     version: null
@@ -84,7 +99,18 @@ platform_systems:
       - server/credential-vault.js
       - server/encrypted-file-credential-vault.js
       - docs/credential-vault.md
-    notes: Mail has trusted session-derived application identity and provider-account isolation boundaries, while external-provider OAuth remains a separate authority. Accepted GoreeCloud Identity application authentication, production service identity/key lifecycle, browser sessions, and production provider-credential custody are not established.
+      - clients/android/README.md
+      - clients/android/app/src/main/java/com/goreecloud/mail/MailSessionBinding.kt
+    notes: Mail has trusted session-derived application identity and provider-account isolation boundaries. The Android client now has a source-ready, non-secret principal/account/audience/lifetime binding contract pinned to GoreeCloud Identity native-session semantics, but this is not deployed Identity runtime. Accepted GoreeCloud Identity application registration, credential/session exchange, protected credential storage, production service identity/key lifecycle, browser sessions, server-side migration, and production provider-credential custody remain blocked. External-provider OAuth remains a separate authority.
+
+  sync:
+    result: applicable-blocked
+    version: null
+    evidence:
+      - clients/android/README.md
+      - clients/android/app/src/main/java/com/goreecloud/mail/MailCapabilitySnapshot.kt
+      - SPECIFICATIONS.md
+    notes: Provider synchronization concepts and future Android background/offline behavior do not establish GoreeCloud Sync acceptance. No accepted change tracking, version coordination, authorized replication, conflict reconciliation, offline resume, cross-device state continuity, or Sync runtime integration is established. Sync remains distinct from provider mail transport, local cache/storage, and Everkeep backup/recovery.
 
 health:
   health_endpoint: null
@@ -96,12 +122,13 @@ continuity:
     requirements:
       - Define and validate the complete GoreeCloud Mail-owned backup scope across durable SQLite state, configuration, minimized security provenance, and other authorized local/trusted-backend state.
       - Keep external-provider-authoritative mailbox content and provider credentials within their respective authority and custody boundaries rather than treating Mail backup as a second authoritative mailbox.
+      - Keep GoreeCloud Sync replication and offline-cache state distinct from backup truth.
       - Establish accepted Everkeep backup evidence and target-environment recovery procedures before production readiness.
   restore:
     required: true
     requirements:
       - Implement and validate a documented restore path for all approved Mail-owned durable state covered by backup.
-      - Preserve account isolation, provider-account ownership, migration integrity, minimized security provenance, and credential-reference boundaries during restore.
+      - Preserve account isolation, provider-account ownership, Identity ownership, migration integrity, minimized security provenance, and credential-reference boundaries during restore.
       - Execute representative target-environment restore and rollback drills before recovery or Stable qualification is claimed.
   export:
     required: true
@@ -112,8 +139,8 @@ continuity:
     required: true
     requirements:
       - Keep the Courier provider abstraction independent from Gmail-specific assumptions and fail closed when an account lacks an authorized provider capability.
-      - Define migration and portability behavior for Mail-owned durable state, configuration, and future native clients without transferring external-provider authority into GoreeCloud Mail.
-      - Validate Linux and Android client portability only after those first-party client implementations exist and pass governed acceptance.
+      - Define migration and portability behavior for Mail-owned durable state, configuration, and native clients without transferring external-provider authority into GoreeCloud Mail.
+      - Validate Android and future Linux client portability only after the applicable first-party client capabilities pass governed acceptance.
 
 external_dependencies:
   - name: Node.js
@@ -128,14 +155,19 @@ external_dependencies:
     purpose: Required security authority for the currently guarded incoming and outgoing attachment admission paths when those paths are enabled.
     required: true
     version_constraint: null
+  - name: Android platform
+    purpose: Native Android application runtime and platform integration environment.
+    required: true
+    version_constraint: ">=29"
 
 compatibility:
-  platform_contract: "0.2"
-  glaze_ui_required: "1.1.0"
+  platform_contract: "0.3"
+  glaze_ui_required: "1.4.0"
   requires:
-    - goreecloud-platform-contract==0.2
-    - glaze-ui==1.1.0
+    - goreecloud-platform-contract==0.3
+    - glaze-ui==1.4.0
     - node>=22
+    - android-api>=29
   provides:
     - courier.provider-capabilities/1
 
@@ -169,17 +201,25 @@ conformance:
     - server/gmail-outgoing-attachment-security.js
     - server/sqlite-state.js
     - server/sqlite-backup.js
+    - clients/android/README.md
     - clients/android/BUILD_STATUS.md
+    - clients/android/app/src/main/java/com/goreecloud/mail/GlazeMailTheme.kt
+    - clients/android/app/src/main/java/com/goreecloud/mail/MailCapabilitySnapshot.kt
+    - clients/android/app/src/main/java/com/goreecloud/mail/MailSessionBinding.kt
+    - docs/glaze-ui-v1.4-android-adoption.md
+    - scripts/validate_android_glaze_v1_4.py
   blockers:
-    - Current GLAZE UI authority is V1.1 / 1.1.0; older V1.0 and pre-reset 2.x Mail records must not be treated as current acceptance, and the known immutable 1.1.0 defect requires a corrected immutable Stable release, explicit Mail re-pin, and fresh application-specific rendered/accessibility/responsive/representative-environment/Human Visual Excellence acceptance.
+    - Native Android targets GLAZE UI V1.4, but repository-wide web migration plus fresh V1.4 rendered, interaction, accessibility, responsive/form-factor, representative-environment/device, performance, rollback, Human Visual Excellence, and applicable V1.4.1 manual/device acceptance remain incomplete.
     - GoreeCloud Manager integration and acceptance are not established.
     - Privacy Shield runtime/policy integration and production privacy acceptance are not established.
-    - Wardveil attachment enforcement is bounded and runtime-validated only for the controlled-provider consumer matrix; real Gmail execution, production identity/credential lifecycle, authoritative Audit/Security Center provenance, quarantine, and broad production acceptance remain outstanding.
-    - Everkeep integration, complete Mail-owned backup scope, restore implementation, representative recovery drills, rollback, and production continuity acceptance remain incomplete.
+    - Wardveil attachment enforcement is bounded and runtime-validated only for the controlled-provider consumer matrix; real Gmail execution, Android attachment handling, production identity/credential lifecycle, authoritative Audit/Security Center provenance, quarantine, and broad production acceptance remain outstanding.
+    - Everkeep integration, complete Mail-owned backup scope, Android recovery behavior, restore implementation, representative recovery drills, rollback, and production continuity acceptance remain incomplete.
     - GoreeCloud Mesh registration, capability/event publication, authenticated delivery, and runtime acceptance are not established.
-    - GoreeCloud Identity application authentication and production service/browser/provider-credential custody acceptance are not established; provider authorization remains a separate authority.
+    - GoreeCloud Identity native application registration, credential/session runtime, protected credential storage, server-side migration, production service/browser/provider-credential custody, and accepted Identity authority remain incomplete; provider authorization remains a separate authority.
+    - GoreeCloud Sync change tracking, authorized replication, version/conflict reconciliation, offline resume, and cross-device continuity acceptance are not established.
     - The trusted Mail API does not yet publish a complete versioned Platform Contract API declaration or accepted health/readiness interfaces.
     - Real Gmail and standards-based IMAP/SMTP provider execution and production interoperability remain unaccepted.
-    - The Linux first-party client and Android Gradle application are not complete; clients/android/BUILD_STATUS.md explicitly records the Android application implementation as pending.
+    - Android account transport, live provider reads/writes, protected local mail storage, background synchronization, push, and attachment handling remain unavailable even though the native shell, V1.4 source mapping, and session-binding prerequisite are source-validated.
+    - The Linux first-party client remains incomplete.
     - Complete offline queue/replay, synchronization conflict handling, provider production observability, upgrade/rollback, account-isolation acceptance, and security/privacy failure-mode validation remain incomplete.
-    - Production signing, artifact provenance, deployment approval, representative target-environment acceptance, Release Candidate entry, and Stable qualification remain outstanding.
+    - Production signing, SBOM/provenance, deployment approval, representative target-environment/device acceptance, Release Candidate entry, and Stable qualification remain outstanding.
