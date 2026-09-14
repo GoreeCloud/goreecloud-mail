@@ -15,15 +15,17 @@ Current implemented foundation:
 - Source-ready `MailSessionBinding` prerequisite for non-secret principal, exact opaque Mail account, Android-Mail audience, and lifetime proof metadata.
 - Source-ready read-only provider request contract for the server routes that actually exist today: `GET /api/mail/accounts`, `GET /api/mail/accounts/{accountId}`, and `GET /api/mail/accounts/{accountId}/capabilities`.
 - Source-ready provider response acceptance for the current public account record (`id`, `provider`, `externalAccountId`, `displayName`, `createdAt`) and the exact normalized Mail capability map.
+- Source-ready `MailProviderWireDecoder` for already-parsed generic Kotlin map/list values. It requires exact field sets, exact scalar types, exact capability keys, and then re-runs the response policy before returning accepted typed models.
+- The wire decoder does not parse JSON, coerce strings/booleans, perform I/O, carry credentials, or authenticate a session.
 - Account identifiers remain opaque and exact. The Android contract does not trim, case-fold, decode, or otherwise reinterpret account identity; it only validates and percent-encodes the identifier when constructing a relative request path.
-- Response allowlists exclude session user identity and credential material. Account-list duplicates, detail/request identity drift, malformed timestamps, unknown capability keys, missing capability keys, control-bearing text, and excessive account counts fail closed.
+- Response allowlists exclude session user identity and credential material. Account-list duplicates, detail/request identity drift, malformed timestamps, unknown/missing fields, unknown/missing capability keys, scalar-type drift, control-bearing text, and excessive account counts fail closed.
 - Fail-closed Development behavior: no `INTERNET` permission and no provider/account transport authority is claimed.
 - Android backup disabled for the current shell.
-- JVM coverage for capability truthfulness, session binding, provider request paths, and provider response acceptance.
+- JVM coverage for capability truthfulness, session binding, provider request paths, response acceptance, and exact-field decoding.
 - Android Client CI validates the V1.4/source-authority boundary, JVM tests, and debug APK assembly.
 - Gradle caching, parallel execution, and incremental Kotlin compilation enabled.
 
-The source-ready provider contract is not live provider access. It adds no JSON/network decoder, HTTP client, browser-cookie bridge, bearer token, OAuth token, IMAP/SMTP credential, provider password, local authoritative account store, mailbox/message transport, or background synchronization.
+The source-ready read/response/decoder stack is not live provider access. It adds no HTTP client, browser-cookie bridge, bearer token, OAuth token, IMAP/SMTP credential, provider password, local authoritative account store, mailbox/message transport, or background synchronization.
 
 The exact current Mail service router does not yet expose the mailbox/message/search/session read routes represented by the browser provider interface. Android therefore must not treat those browser methods as native service authority until corresponding server routes are implemented and independently accepted.
 
@@ -41,8 +43,8 @@ GoreeCloud Sync must not be inferred from provider synchronization, local cache/
 
 Advance each capability independently and preserve truthful authority boundaries:
 
-1. Add an exact-field decoder for the source-ready account/capability response contracts; it must reject unknown fields before constructing trusted Android models and must remain transport-neutral.
-2. Define and accept first-party GoreeCloud Identity native application registration and credential/session exchange for Android Mail without reusable application-wide credentials.
+1. Define and accept first-party GoreeCloud Identity native application registration and credential/session exchange for Android Mail without reusable application-wide credentials.
+2. Add a bounded byte/UTF-8/JSON parsing boundary that produces generic values for the existing exact-field decoder without network authority; keep body-size and malformed-input rejection explicit.
 3. Add a bounded authenticated same-service transport adapter for account discovery/capabilities against non-production Development accounts. Do not enable mailbox/message routes that the server does not yet expose.
 4. Implement and accept server-side read routes for mailbox/message/session/search behavior before adding the corresponding Android request/response contracts.
 5. Add protected local message/index storage with explicit data minimization, encryption/key custody, eviction, and recovery behavior.
