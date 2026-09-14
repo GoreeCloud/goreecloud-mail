@@ -151,26 +151,19 @@ private fun CapabilityStatusCard(capabilities: MailCapabilitySnapshot) {
                 )
             }
             Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Session/account binding: ${capabilities.sessionBindingContract.state.name.replace('_', ' ')}",
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = capabilities.sessionBindingContract.explanation,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            SourceReadyCapability(
+                label = "Session/account binding",
+                capability = capabilities.sessionBindingContract,
             )
             Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Provider read contract: ${capabilities.providerReadContract.state.name.replace('_', ' ')}",
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
+            SourceReadyCapability(
+                label = "Provider read contract",
+                capability = capabilities.providerReadContract,
             )
-            Text(
-                text = capabilities.providerReadContract.explanation,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Spacer(Modifier.height(8.dp))
+            SourceReadyCapability(
+                label = "Exact-field wire decoder",
+                capability = capabilities.providerWireDecoderContract,
             )
             Spacer(Modifier.height(8.dp))
             Text(
@@ -180,4 +173,21 @@ private fun CapabilityStatusCard(capabilities: MailCapabilitySnapshot) {
             )
         }
     }
+}
+
+@Composable
+private fun SourceReadyCapability(
+    label: String,
+    capability: MailCapability,
+) {
+    Text(
+        text = "$label: ${capability.state.name.replace('_', ' ')}",
+        style = MaterialTheme.typography.bodySmall,
+        fontWeight = FontWeight.SemiBold,
+    )
+    Text(
+        text = capability.explanation,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
