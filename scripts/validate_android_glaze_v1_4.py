@@ -9,6 +9,7 @@ MANIFEST = ROOT / "clients/android/app/src/main/AndroidManifest.xml"
 DOC = ROOT / "docs/glaze-ui-v1.4-android-adoption.md"
 READ_CONTRACT = ROOT / "clients/android/app/src/main/java/com/goreecloud/mail/MailProviderReadContract.kt"
 RESPONSE_CONTRACT = ROOT / "clients/android/app/src/main/java/com/goreecloud/mail/MailProviderResponseContract.kt"
+WIRE_DECODER = ROOT / "clients/android/app/src/main/java/com/goreecloud/mail/MailProviderWireDecoder.kt"
 CAPABILITIES = ROOT / "clients/android/app/src/main/java/com/goreecloud/mail/MailCapabilitySnapshot.kt"
 
 VERSION = "1.4.0"
@@ -32,6 +33,7 @@ def main() -> None:
     doc = DOC.read_text(encoding="utf-8")
     read_contract = READ_CONTRACT.read_text(encoding="utf-8")
     response_contract = RESPONSE_CONTRACT.read_text(encoding="utf-8")
+    wire_decoder = WIRE_DECODER.read_text(encoding="utf-8")
     capabilities = CAPABILITIES.read_text(encoding="utf-8")
 
     require(theme, f'VERSION = "{VERSION}"', "theme")
@@ -69,8 +71,32 @@ def main() -> None:
     forbid(response_contract, '"refreshToken",', "provider response contract")
     forbid(response_contract, '"password",', "provider response contract")
 
+    require(wire_decoder, "object MailProviderWireDecoder", "provider wire decoder")
+    require(wire_decoder, "exactFields(root, MailProviderResponseContract.ACCOUNTS_TOP_LEVEL_FIELDS)", "provider wire decoder")
+    require(wire_decoder, "exactFields(account, MailProviderResponseContract.ACCOUNT_FIELDS)", "provider wire decoder")
+    require(wire_decoder, "rawCapabilities.keys != MailProviderResponseContract.KNOWN_CAPABILITIES", "provider wire decoder")
+    require(wire_decoder, "value !is Boolean", "provider wire decoder")
+    require(wire_decoder, "account[\"id\"] as? String", "provider wire decoder")
+    require(wire_decoder, "MailProviderResponseContract.acceptAccounts", "provider wire decoder")
+    require(wire_decoder, "MailProviderResponseContract.acceptAccount", "provider wire decoder")
+    require(wire_decoder, "MailProviderResponseContract.acceptCapabilities", "provider wire decoder")
+    for forbidden in (
+        "HttpClient",
+        "URLConnection",
+        "Retrofit",
+        "OkHttp",
+        "JSONObject",
+        "kotlinx.serialization",
+        "accessToken",
+        "refreshToken",
+        "password",
+    ):
+        forbid(wire_decoder, forbidden, "provider wire decoder")
+
     require(capabilities, "val providerReadContract: MailCapability", "capability snapshot")
+    require(capabilities, "val providerWireDecoderContract: MailCapability", "capability snapshot")
     require(capabilities, "providerReadContract = MailCapability(", "capability snapshot")
+    require(capabilities, "providerWireDecoderContract = MailCapability(", "capability snapshot")
     require(capabilities, "state = MailCapabilityState.SOURCE_READY", "capability snapshot")
 
     # Source-ready contracts must not accidentally expand Mail's runtime authority.
@@ -80,7 +106,7 @@ def main() -> None:
     print(
         "Mail Android boundary validated: "
         f"glaze={VERSION}@{REVISION} providerReadContract=source-ready "
-        "internet=false identityRuntime=false providerTransport=false production=false"
+        "wireDecoder=source-ready internet=false identityRuntime=false providerTransport=false production=false"
     )
 
 
