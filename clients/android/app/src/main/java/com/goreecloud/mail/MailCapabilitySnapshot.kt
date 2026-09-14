@@ -14,6 +14,7 @@ data class MailCapability(
 
 data class MailCapabilitySnapshot(
     val sessionBindingContract: MailCapability,
+    val providerReadContract: MailCapability,
     val accountTransport: MailCapability,
     val backgroundSync: MailCapability,
     val pushNotifications: MailCapability,
@@ -30,6 +31,10 @@ data class MailCapabilitySnapshot(
                 sessionBindingContract = MailCapability(
                     state = MailCapabilityState.SOURCE_READY,
                     explanation = "Fail-closed non-secret session/account binding policy is implemented; native Identity exchange is not implemented",
+                ),
+                providerReadContract = MailCapability(
+                    state = MailCapabilityState.SOURCE_READY,
+                    explanation = "Read-only account discovery/detail/capability request and response contracts match the current Mail service; decoding and network transport are not implemented",
                 ),
                 accountTransport = pending,
                 backgroundSync = pending,
