@@ -14,6 +14,7 @@ data class MailCapability(
 
 data class MailCapabilitySnapshot(
     val sessionBindingContract: MailCapability,
+    val identityRegistrationContract: MailCapability,
     val providerAccountContract: MailCapability,
     val providerAccountDecoder: MailCapability,
     val accountTransport: MailCapability,
@@ -32,6 +33,10 @@ data class MailCapabilitySnapshot(
                 sessionBindingContract = MailCapability(
                     state = MailCapabilityState.SOURCE_READY,
                     explanation = "Fail-closed non-secret session/account binding policy is implemented; native Identity exchange is not implemented",
+                ),
+                identityRegistrationContract = MailCapability(
+                    state = MailCapabilityState.SOURCE_READY,
+                    explanation = "Identity registration acceptance is source-ready, but the pinned Identity registry has no runtime registrations; Mail registration and native Identity runtime remain blocked",
                 ),
                 providerAccountContract = MailCapability(
                     state = MailCapabilityState.SOURCE_READY,
