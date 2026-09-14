@@ -7,6 +7,7 @@ THEME = ROOT / "clients/android/app/src/main/java/com/goreecloud/mail/GlazeMailT
 MAIN = ROOT / "clients/android/app/src/main/java/com/goreecloud/mail/MainActivity.kt"
 MANIFEST = ROOT / "clients/android/app/src/main/AndroidManifest.xml"
 DOC = ROOT / "docs/glaze-ui-v1.4-android-adoption.md"
+PROVIDER_CONTRACT = ROOT / "clients/android/app/src/main/java/com/goreecloud/mail/MailProviderAccountContract.kt"
 
 VERSION = "1.4.0"
 REVISION = "84cb3db4884042f0fa25ed6d475a127fb110f596"
@@ -27,6 +28,7 @@ def main() -> None:
     main_source = MAIN.read_text(encoding="utf-8")
     manifest = MANIFEST.read_text(encoding="utf-8")
     doc = DOC.read_text(encoding="utf-8")
+    provider_contract = PROVIDER_CONTRACT.read_text(encoding="utf-8")
 
     require(theme, f'VERSION = "{VERSION}"', "theme")
     require(theme, f'REFERENCE_REVISION = "{REVISION}"', "theme")
@@ -44,13 +46,23 @@ def main() -> None:
     require(doc, "Development / adoption in progress", "documentation")
     require(doc, REVISION, "documentation")
 
-    # This Glaze migration must not accidentally expand Mail's runtime authority.
+    require(provider_contract, 'ACCOUNTS_PATH = "/api/mail/accounts"', "provider account contract")
+    require(provider_contract, "MailProviderAccountContractState.SOURCE_READY", "provider account contract")
+    require(provider_contract, "MailProviderAccountContractState.IDENTITY_BLOCKED", "provider account contract")
+    require(provider_contract, "MailProviderAccountContractState.TRANSPORT_BLOCKED", "provider account contract")
+    forbid(provider_contract, "HttpURLConnection", "provider account contract")
+    forbid(provider_contract, "OkHttp", "provider account contract")
+    forbid(provider_contract, "Retrofit", "provider account contract")
+    forbid(provider_contract, "Bearer ", "provider account contract")
+
+    # This source-ready tranche must not accidentally expand Mail's runtime authority.
     forbid(manifest, "android.permission.INTERNET", "manifest")
     require(manifest, 'android:allowBackup="false"', "manifest")
 
     print(
-        "Mail Android GLAZE UI V1.4 adoption validated: "
-        f"version={VERSION} revision={REVISION} conformance=false production=false"
+        "Mail Android source boundary validated: "
+        f"glaze={VERSION}@{REVISION} providerAccountContract=source-ready "
+        "identityRuntime=false internet=false accountTransport=false production=false"
     )
 
 
