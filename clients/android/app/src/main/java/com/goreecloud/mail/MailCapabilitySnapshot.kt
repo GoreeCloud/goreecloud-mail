@@ -15,6 +15,7 @@ data class MailCapability(
 data class MailCapabilitySnapshot(
     val sessionBindingContract: MailCapability,
     val providerAccountContract: MailCapability,
+    val providerAccountDecoder: MailCapability,
     val accountTransport: MailCapability,
     val backgroundSync: MailCapability,
     val pushNotifications: MailCapability,
@@ -35,6 +36,10 @@ data class MailCapabilitySnapshot(
                 providerAccountContract = MailCapability(
                     state = MailCapabilityState.SOURCE_READY,
                     explanation = "Read-only provider-account request/response and capability vocabulary are source-ready; no network transport is enabled",
+                ),
+                providerAccountDecoder = MailCapability(
+                    state = MailCapabilityState.SOURCE_READY,
+                    explanation = "Exact-field in-memory decoder rejects unknown, missing, and mistyped provider-account fields before semantic acceptance; JSON/network transport is not enabled",
                 ),
                 accountTransport = pending,
                 backgroundSync = pending,
